@@ -1,0 +1,63 @@
+# Option strategies: value today against the payoff at expiry. A long straddle (call + put at 100) profits from a big move
+# either way, a bull call spread (long 95 call, short 105 call) caps both gain and loss, a long butterfly (calls at 90 and
+# 110 bought, two 100 calls sold) bets on the price staying put. lmfinance prices every leg with Black-Scholes (3 months,
+# 25% volatility, 3% rate) and asserts put-call parity C - P = S - K exp(-r T) at six spots (to a cent: QuantLib rounds maturities to whole days) before lmplot draws the three
+# value curves lying above their hockey-stick payoffs.
+# Output: images/option_strategies.png   (run: lmctl autorun <raw url of this file>)
+mkdir("images");
+mkdir("data");
+sim = _dsl_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
+let a = pricing.analytic();
+let t = 0.25;
+let c90 = instrument.european_call(90.0, t);
+let c95 = instrument.european_call(95.0, t);
+let c100 = instrument.european_call(100.0, t);
+let c105 = instrument.european_call(105.0, t);
+let c110 = instrument.european_call(110.0, t);
+let p100 = instrument.european_put(100.0, t);
+let rows = "";
+for (i in range(0, 81)) {
+  let s = 70.0 + 0.5 * float(i);
+  let m = model.black_scholes(s, 0.03, 0.0, 0.25);
+  let v90 = pricing.price(c90, m, a).price();
+  let v95 = pricing.price(c95, m, a).price();
+  let v100 = pricing.price(c100, m, a).price();
+  let v105 = pricing.price(c105, m, a).price();
+  let v110 = pricing.price(c110, m, a).price();
+  let w100 = pricing.price(p100, m, a).price();
+  if (i % 16 == 0) { lmf.assert_close(v100 - w100, s - 100.0 * pow(2.718281828459045, -0.03 * t), 0.01); }
+  let straddle = v100 + w100;
+  let bull = v95 - v105;
+  let fly = v90 + v110 - 2.0 * v100;
+  let pay_straddle = max(s - 100.0, 0.0) + max(100.0 - s, 0.0);
+  let pay_bull = max(s - 95.0, 0.0) - max(s - 105.0, 0.0);
+  let pay_fly = max(s - 90.0, 0.0) + max(s - 110.0, 0.0) - 2.0 * max(s - 100.0, 0.0);
+  rows = rows + str(s) + " " + str(straddle) + " " + str(pay_straddle) + " " + str(bull) + " " + str(pay_bull) + " " + str(fly) + " " + str(pay_fly) + "\n";
+}
+lmf.save_text("data/strategies.csv", rows);
+let mm = model.black_scholes(100.0, 0.03, 0.0, 0.25);
+let atm = pricing.price(c100, mm, a).price() + pricing.price(p100, mm, a).price();
+lmf.assert_close(atm, 0.8 * 100.0 * 0.25 * 0.5, 0.6);
+end _dsl_
+savedsl(sim, "data/option_strategies-sim.dslb");
+r = system ${dsl_cli(sim)} --dsl data/option_strategies-sim.dslb;
+if (r.code != 0) { println(r.stdout); }
+assert(r.code == 0);
+
+draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+plot.png("images/option_strategies.png", 1200, 440);
+plot.cmd("set multiplot layout 1,3");
+plot.cmd("set border 3; set tics nomirror; set grid lc rgb '#dddddd'; set key top center box opaque; set xlabel 'underlying price'; set xrange [70:110]");
+plot.cmd("set title 'Long straddle (call + put at 100)'; set ylabel 'value'");
+plot.cmd("plot 'data/strategies.csv' u 1:3 w l lw 2 dt 2 lc rgb 'black' t 'payoff at expiry', '' u 1:2 w l lw 3 lc rgb '#d62728' t 'value today'");
+plot.cmd("set title 'Bull call spread (95 / 105)'; unset ylabel; set key top left box opaque");
+plot.cmd("plot 'data/strategies.csv' u 1:5 w l lw 2 dt 2 lc rgb 'black' t 'payoff at expiry', '' u 1:4 w l lw 3 lc rgb '#1f77b4' t 'value today'");
+plot.cmd("set title 'Long butterfly (90 / 100 / 110)'");
+plot.cmd("plot 'data/strategies.csv' u 1:7 w l lw 2 dt 2 lc rgb 'black' t 'payoff at expiry', '' u 1:6 w l lw 3 lc rgb '#2ca02c' t 'value today'");
+plot.cmd("unset multiplot");
+plot.close();
+end _dsl_
+savedsl(draw, "data/option_strategies-draw.dslb");
+r = system ${dsl_cli(draw)} --dsl data/option_strategies-draw.dslb;
+assert(r.code == 0);
+println("wrote images/option_strategies.png");
