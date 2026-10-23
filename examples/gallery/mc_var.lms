@@ -1,5 +1,5 @@
 # Monte Carlo value at risk by full revaluation (needs lmfinance 0.1.2 and lmnum). Three hosts in one script: lmnum
-# draws 4000 seeded standard normals and correlates them (Cholesky of a 2 x 2 matrix, rho = -0.3) into 10-day shocks
+# draws 4000 seeded standard normals and correlates them (the 2 x 2 Cholesky factor of rho = -0.3) into 10-day shocks
 # to the spot (20% vol) and to the rate (80 bp a year); lmfinance reprices an option book (long 100 calls K 100,
 # short 150 puts K 90, long 50 calls K 110, one year) in every scenario, writes the P/L, and `risk.series` reads it
 # back for the 99% VaR and expected shortfall. Compared with the delta-normal VaR of the same book (`var_normal` on
@@ -9,8 +9,9 @@ mkdir("images");
 mkdir("data");
 rng = _dsl_ cli="lmnum" install="github:lmctl-ai/lmnum@latest";
 let z = num.normal(4000, 2, 2024);
-let corr = num.parse("1 -0.3; -0.3 1").cholesky();
-let shocks = z.mul(corr.transpose());              # rows of correlated standard normals
+let chol = num.parse("1 0; -0.3 0.9539392014169457");   # Cholesky factor of [1 -0.3; -0.3 1]: [1 0; rho sqrt(1 - rho^2)]
+let shocks = z.mul(chol.transpose());              # rows of correlated standard normals
+num.assert_close(chol.mul(chol.transpose()).sub(num.parse("1 -0.3; -0.3 1")).norm(), 0.0, 0.000000000001);
 shocks.col(0).save_csv("data/mc_var_z1.csv");
 shocks.col(1).save_csv("data/mc_var_z2.csv");
 num.assert_close(shocks.col(0).std(), 1.0, 0.05);

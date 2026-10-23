@@ -41,8 +41,8 @@ PNG <= 300 KB, GIF <= 3 MB). All examples, old and new, end with `r = system ${d
   (candlesticks as waterfall boxes), `swap_cashflows` (lmdraw; the legs rebuilt from forwards agree with `swap_npv` to 0.1% of notional).
 - New API (0.1.2): `barrier_options` (in-out parity; the up-and-out call's vega turns negative), `asian_options` (arithmetic MC with
   the geometric control variate: 40 000 paths x 8 fixing counts x 21 strikes is 17 s), `caps_floors` (cap = floor at the ATM rate,
-  cap - floor linear in K), `swaption_grid` (ATM payer = receiver; annuity from two strikes), `mc_var` (three hosts: lmnum normals and
-  `cholesky`, lmfinance repricing, `risk.series` VaR/ES; the book is net long gamma so full-revaluation VaR < delta-normal).
+  cap - floor linear in K), `swaption_grid` (ATM payer = receiver; annuity from two strikes), `mc_var` (three hosts: lmnum normals with a hand-written 2 x 2 Cholesky factor so the released lmnum 0.1.1 suffices in CI,
+  lmfinance repricing, `risk.series` VaR/ES; the book is net long gamma so full-revaluation VaR < delta-normal).
 - gnuplot lessons: `index` blocks need TWO blank lines (one blank line only separates `every` blocks); `set key below` plus a
   later `set key top left` in another panel raises "ignoring top/center/bottom; incompatible with tmargin/bmargin" (lmplot treats
   gnuplot warnings as errors); key placement in multiplot panels is most reliable with `set key at graph x, y <corner>`;
