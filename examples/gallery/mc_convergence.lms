@@ -28,10 +28,11 @@ assert(r.code == 0);
 
 draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
 plot.png("images/mc_convergence.png", 900, 560);
+# Read before plot ranges/log scales filter the data.
+plot.cmd("stats 'data/mc_exact.csv' using 1 nooutput; exact = STATS_min");
 plot.cmd("set border 3; set tics nomirror; set grid lc rgb '#dddddd'; set logscale x; set format x '10^{%L}'; set key bottom right box opaque");
 plot.cmd("set title 'Monte Carlo estimate of a call value with 1 standard-error bars (seed 7)'");
 plot.cmd("set xlabel 'paths'; set ylabel 'price'; set xrange [300:3e7]; set yrange [9.3:11.0]");
-plot.cmd("exact = system('head -1 data/mc_exact.csv') + 0");
 plot.cmd("plot exact w l lw 2 dt 2 lc rgb 'black' t 'closed form 10.4506', 'data/mc_estimates.csv' u 1:2:3 w yerrorbars pt 7 ps 1.4 lw 2 lc rgb '#d62728' t 'Monte Carlo'");
 plot.close();
 end _dsl_
