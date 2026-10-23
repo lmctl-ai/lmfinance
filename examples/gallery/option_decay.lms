@@ -1,0 +1,39 @@
+# A European call approaches its payoff max(S - K, 0) as expiry nears: 40 frames of Black-Scholes value against spot for
+# maturities from one year to a week (K = 100, r = 5%, vol = 20%), encoded to images/option_decay.gif with ffmpeg.
+# lmfinance prices, lmplot draws the frames. Needs lmplot and ffmpeg.
+mkdir("images");
+mkdir("data");
+mkdir("data/decay");
+sim = _dsl_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
+let m = model.black_scholes(100.0, 0.05, 0.0, 0.2);
+for (k in range(0, 40)) {
+  let f = 1.0 - float(k) / 40.0;
+  let t = max(0.02, f * f);
+  risk.save_profile(instrument.european_call(100.0, t), m, pricing.analytic(), 70.0, 130.0, 121, "data/decay/p" + str(k) + ".csv");
+  lmf.save_text("data/decay/t" + str(k) + ".txt", str(t));
+}
+# the textbook value at the first frame (T = 1): 10.4506
+lmf.assert_close(pricing.price(instrument.european_call(100.0, 1.0), m, pricing.analytic()).price(), 10.4506, 0.00005);
+end _dsl_
+savedsl(sim, "data/option_decay-sim.dslb");
+r = system ${dsl_cli(sim)} --dsl data/option_decay-sim.dslb;
+assert(r.code == 0);
+
+draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+plot.cmd("set border 3; set tics nomirror; set grid lc rgb '#dddddd'; set key top left");
+plot.cmd("set xlabel 'spot S'; set ylabel 'call value'; set xrange [70:130]; set yrange [0:32]");
+for (k in range(0, 40)) {
+  let f = 1.0 - float(k) / 40.0;
+  let t = max(0.02, f * f);
+  plot.png("data/decay/f" + str(k) + ".png", 640, 480);
+  plot.cmd("set title 'European call, K = 100: " + str(floor(t * 365.0 + 0.5)) + " days to expiry'");
+  plot.cmd("plot 'data/decay/p" + str(k) + ".csv' u 1:2 w l lw 3 lc rgb '#1f77b4' t 'Black-Scholes value', (x > 100 ? x - 100 : 0) w l lw 2 dt 2 lc rgb 'black' t 'payoff at expiry'");
+  plot.close();
+}
+end _dsl_
+savedsl(draw, "data/option_decay-draw.dslb");
+r = system ${dsl_cli(draw)} --dsl data/option_decay-draw.dslb;
+assert(r.code == 0);
+r = system ffmpeg -y -loglevel error -framerate 10 -i data/decay/f%d.png -vf "split[a][b];[a]palettegen=max_colors=64[p];[b][p]paletteuse=dither=none" images/option_decay.gif;
+assert(r.code == 0);
+println("wrote images/option_decay.gif");

@@ -1,4 +1,5 @@
 # The volatility smile of a Heston model, and a calibration that recovers its parameters from the smile.
+mkdir("build/examples");
 out = ARGV.len() > 0 ? ARGV[0] : "build/heston_smile.dslb";
 p = _dsl_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
 let a = pricing.analytic();
@@ -24,3 +25,5 @@ let opt = instrument.european_call(100.0, 1.0);
 lmf.assert_close(pricing.price(opt, fitted, a).price(), pricing.price(opt, truth, a).price(), 0.01);
 end _dsl_
 savedsl(p, out);
+r = system ${dsl_cli(p)} --dsl ${out};
+assert(r.code == 0);

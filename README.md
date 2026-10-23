@@ -1,7 +1,18 @@
 # lmfinance
 
-**Quantitative finance for lmscript in one static executable: QuantLib yield curves, bonds, swaps,
-vanilla options priced four ways, Greeks, risk measures and calibration.** It is a scripting host,
+**QuantLib for lmscript: yield curves, bonds, swaps, options, Greeks, risk and calibration in one static executable.**
+
+| | | |
+| :---: | :---: | :---: |
+| <img src="docs/images/option_decay.gif" width="300"><br>Call value melting onto its payoff, animated<br><sub><code>lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/option_decay.lms</code></sub> | <img src="docs/images/yield_curve.png" width="300"><br>Bootstrapped yield curve: zero and forward rates<br><sub><code>lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/yield_curve.lms</code></sub> | <img src="docs/images/option_greeks.png" width="300"><br>Call price and delta against spot<br><sub><code>lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/option_greeks.lms</code></sub> |
+| <img src="docs/images/american_put.png" width="300"><br>American vs European put: early-exercise premium<br><sub><code>lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/american_put.lms</code></sub> | <img src="docs/images/bond_convexity.png" width="300"><br>Bond price against yield with the duration tangent<br><sub><code>lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/bond_convexity.lms</code></sub> | <img src="docs/images/rate_scenarios.png" width="300"><br>Bond and swap P/L under parallel curve shifts<br><sub><code>lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/rate_scenarios.lms</code></sub> |
+| <img src="docs/images/vol_smile.png" width="300"><br>Heston implied-volatility smile for three correlations<br><sub><code>lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/vol_smile.lms</code></sub> | <img src="docs/images/engine_convergence.png" width="300"><br>Tree, finite-difference and Monte Carlo error<br><sub><code>lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/engine_convergence.lms</code></sub> | <img src="docs/images/mc_convergence.png" width="300"><br>Seeded Monte Carlo inside its error bars<br><sub><code>lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/mc_convergence.lms</code></sub> |
+| <img src="docs/images/var_tail.png" width="300"><br>99% VaR and expected shortfall of a position<br><sub><code>lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/var_tail.lms</code></sub> |  |  |
+
+Each command runs the example from any empty directory: lmfinance computes, [lmplot](https://github.com/lmctl-ai/lmplot) draws, and the
+picture lands in `images/`. `examples/render-all.sh` regenerates `docs/images/` from a checkout.
+
+It is a scripting host,
 not a command-line tool: write an [lmscript](https://lmctl.com/tools/lmscript/skill.html) `_dsl_`
 block, compile it, run it with `lmfinance --dsl`. No Python, no Boost libraries, no shared libraries.
 
@@ -43,22 +54,28 @@ with `market.set_date`.
 
 Conventions and details: [durable-memory/03-schema-v0.md](durable-memory/03-schema-v0.md).
 
-Combine it with other hosts in one script: [examples/combo/](examples/combo) bootstraps a curve and
-profiles an option with lmfinance and draws them with [lmplot](https://github.com/lmctl-ai/lmplot)
+Combine it with other hosts in one script: [examples/gallery/](examples/gallery) bootstraps curves, prices and profiles options with lmfinance and draws them with [lmplot](https://github.com/lmctl-ai/lmplot)
 (two `_dsl_` blocks, two hosts).
-
-![Bootstrapped yield curve](examples/renders/yield_curve.png)
 
 ## Examples
 
-| Program | Shows |
-| --- | --- |
-| [option_pricing.lms](examples/option_pricing.lms) | one call and one American put through every engine, binomial error against the closed form |
-| [bond_curve.lms](examples/bond_curve.lms) | curve bootstrapped from deposits and swaps reprices its inputs; bond price, yield, duration, DV01 |
-| [greeks.lms](examples/greeks.lms) | analytic, tree and Monte Carlo Greeks agree |
-| [heston_smile.lms](examples/heston_smile.lms) | a Heston smile and a calibration that recovers its five parameters |
-| [portfolio_risk.lms](examples/portfolio_risk.lms) | DV01s, normal VaR and expected shortfall of a small book |
-| [combo/yield_curve.lms](examples/combo/yield_curve.lms), [combo/option_greeks.lms](examples/combo/option_greeks.lms) | lmfinance computes, lmplot draws |
+| Program | Shows | Run it |
+| --- | --- | --- |
+| [option_pricing.lms](examples/option_pricing.lms) | one call and one American put through every engine, binomial error against the closed form | `lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/option_pricing.lms` |
+| [bond_curve.lms](examples/bond_curve.lms) | curve bootstrapped from deposits and swaps reprices its inputs; bond price, yield, duration, DV01 | `lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/bond_curve.lms` |
+| [greeks.lms](examples/greeks.lms) | analytic, tree and Monte Carlo Greeks agree | `lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/greeks.lms` |
+| [heston_smile.lms](examples/heston_smile.lms) | a Heston smile and a calibration that recovers its five parameters | `lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/heston_smile.lms` |
+| [portfolio_risk.lms](examples/portfolio_risk.lms) | DV01s, normal VaR and expected shortfall of a small book | `lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/portfolio_risk.lms` |
+| [gallery/option_decay.lms](examples/gallery/option_decay.lms) | Call value melting onto its payoff, animated | `lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/option_decay.lms` |
+| [gallery/yield_curve.lms](examples/gallery/yield_curve.lms) | Bootstrapped yield curve: zero and forward rates | `lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/yield_curve.lms` |
+| [gallery/option_greeks.lms](examples/gallery/option_greeks.lms) | Call price and delta against spot | `lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/option_greeks.lms` |
+| [gallery/american_put.lms](examples/gallery/american_put.lms) | American vs European put: early-exercise premium | `lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/american_put.lms` |
+| [gallery/bond_convexity.lms](examples/gallery/bond_convexity.lms) | Bond price against yield with the duration tangent | `lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/bond_convexity.lms` |
+| [gallery/rate_scenarios.lms](examples/gallery/rate_scenarios.lms) | Bond and swap P/L under parallel curve shifts | `lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/rate_scenarios.lms` |
+| [gallery/vol_smile.lms](examples/gallery/vol_smile.lms) | Heston implied-volatility smile for three correlations | `lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/vol_smile.lms` |
+| [gallery/engine_convergence.lms](examples/gallery/engine_convergence.lms) | Tree, finite-difference and Monte Carlo error | `lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/engine_convergence.lms` |
+| [gallery/mc_convergence.lms](examples/gallery/mc_convergence.lms) | Seeded Monte Carlo inside its error bars | `lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/mc_convergence.lms` |
+| [gallery/var_tail.lms](examples/gallery/var_tail.lms) | 99% VaR and expected shortfall of a position | `lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/var_tail.lms` |
 
 `tests/` holds the checks against textbook values (Black-Scholes 10.4506 and 5.5735, Hull's
 example, the American put 6.0903, bond annuity formulas, put-call parity, Heston → Black-Scholes

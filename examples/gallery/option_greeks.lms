@@ -1,19 +1,20 @@
 # Price, delta and gamma of an at-the-money call as the spot moves.
 # Two hosts in one script: lmfinance computes and writes a CSV, lmplot (gnuplot in a static binary) draws it.
-# Needs lmplot on PATH or installable; the PNG lands in build/examples/option_greeks.png.
-mkdir("build/examples");
+# Needs lmplot on PATH or installable; the PNG lands in images/
+mkdir("images");
+mkdir("data");
 calc = _dsl_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
 
 let m = model.black_scholes(100.0, 0.05, 0.0, 0.2);
 let call = instrument.european_call(100.0, 1.0);
-risk.save_profile(call, m, pricing.analytic(), 60.0, 140.0, 161, "build/examples/option_greeks.csv");
+risk.save_profile(call, m, pricing.analytic(), 60.0, 140.0, 161, "data/option_greeks.csv");
 end _dsl_
-savedsl(calc, "build/option_greeks-calc.dslb");
-r = system ${dsl_cli(calc)} --dsl build/option_greeks-calc.dslb;
+savedsl(calc, "data/option_greeks-calc.dslb");
+r = system ${dsl_cli(calc)} --dsl data/option_greeks-calc.dslb;
 assert(r.code == 0);
 
 draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
-plot.png("build/examples/option_greeks.png", 900, 600);
+plot.png("images/option_greeks.png", 900, 600);
 plot.cmd("set title 'European call: price and delta (lmfinance, drawn by lmplot)'");
 plot.cmd("set xlabel 'spot'");
 plot.cmd("set ylabel 'price'");
@@ -21,10 +22,10 @@ plot.cmd("set y2label 'delta'");
 plot.cmd("set y2tics");
 plot.cmd("set ytics nomirror");
 plot.cmd("set key top left");
-plot.cmd("plot 'build/examples/option_greeks.csv' using 1:2 with lines lw 2 title 'price', '' using 1:3 axes x1y2 with lines lw 2 title 'delta'");
+plot.cmd("plot 'data/option_greeks.csv' using 1:2 with lines lw 2 title 'price', '' using 1:3 axes x1y2 with lines lw 2 title 'delta'");
 plot.close();
 end _dsl_
-savedsl(draw, "build/option_greeks-draw.dslb");
-r = system ${dsl_cli(draw)} --dsl build/option_greeks-draw.dslb;
+savedsl(draw, "data/option_greeks-draw.dslb");
+r = system ${dsl_cli(draw)} --dsl data/option_greeks-draw.dslb;
 assert(r.code == 0);
-println("wrote build/examples/option_greeks.png");
+println("wrote images/option_greeks.png");

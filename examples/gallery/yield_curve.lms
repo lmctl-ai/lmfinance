@@ -1,29 +1,30 @@
 # Bootstrap a yield curve from deposit and swap quotes, draw the zero and forward rates.
 # Two hosts in one script: lmfinance computes and writes a CSV, lmplot (gnuplot in a static binary) draws it.
-# Needs lmplot on PATH or installable; the PNG lands in build/examples/yield_curve.png.
-mkdir("build/examples");
+# Needs lmplot on PATH or installable; the PNG lands in images/
+mkdir("images");
+mkdir("data");
 calc = _dsl_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
 
 market.set_date("2024-01-02");
 let curve = market.bootstrap_curve()
   .deposit("3M", 0.0300).deposit("6M", 0.0310)
   .swap("2Y", 0.0350).swap("5Y", 0.0400).swap("10Y", 0.0420).swap("30Y", 0.0410).build();
-curve.save_csv("build/examples/yield_curve.csv", 30.0, 240);
+curve.save_csv("data/yield_curve.csv", 30.0, 240);
 end _dsl_
-savedsl(calc, "build/yield_curve-calc.dslb");
-r = system ${dsl_cli(calc)} --dsl build/yield_curve-calc.dslb;
+savedsl(calc, "data/yield_curve-calc.dslb");
+r = system ${dsl_cli(calc)} --dsl data/yield_curve-calc.dslb;
 assert(r.code == 0);
 
 draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
-plot.png("build/examples/yield_curve.png", 900, 600);
+plot.png("images/yield_curve.png", 900, 600);
 plot.cmd("set title 'Bootstrapped curve (lmfinance QuantLib, drawn by lmplot)'");
 plot.cmd("set xlabel 'years'");
 plot.cmd("set ylabel 'rate'");
 plot.cmd("set key bottom right");
-plot.cmd("plot 'build/examples/yield_curve.csv' using 1:2 with lines lw 2 title 'zero', '' using 1:4 with lines lw 2 title 'forward'");
+plot.cmd("plot 'data/yield_curve.csv' using 1:2 with lines lw 2 title 'zero', '' using 1:4 with lines lw 2 title 'forward'");
 plot.close();
 end _dsl_
-savedsl(draw, "build/yield_curve-draw.dslb");
-r = system ${dsl_cli(draw)} --dsl build/yield_curve-draw.dslb;
+savedsl(draw, "data/yield_curve-draw.dslb");
+r = system ${dsl_cli(draw)} --dsl data/yield_curve-draw.dslb;
 assert(r.code == 0);
-println("wrote build/examples/yield_curve.png");
+println("wrote images/yield_curve.png");

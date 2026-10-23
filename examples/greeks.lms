@@ -1,4 +1,5 @@
 # Delta, gamma, vega, theta and rho of an at-the-money call: analytic, bumped and Monte Carlo agree. Delta/gamma profile to CSV.
+mkdir("build/examples");
 out = ARGV.len() > 0 ? ARGV[0] : "build/greeks.dslb";
 p = _dsl_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
 let m = model.black_scholes(100.0, 0.05, 0.0, 0.2);
@@ -16,3 +17,5 @@ lmf.assert_close(risk.theta(call, m, pricing.analytic()), r.theta(), 0.001);
 risk.save_profile(call, m, pricing.analytic(), 60.0, 140.0, 161, "build/examples/profile.csv");
 end _dsl_
 savedsl(p, out);
+r = system ${dsl_cli(p)} --dsl ${out};
+assert(r.code == 0);

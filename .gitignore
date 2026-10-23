@@ -3,3 +3,5 @@ third_party/
 *.dslb
 .DS_Store
 lmfinance.lmctl
+images/
+data/

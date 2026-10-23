@@ -1,0 +1,43 @@
+# Bond price against yield: a convex curve, steeper for longer maturities. The tangent at 5% is the duration estimate
+# P (1 - D dy); the gap between curve and tangent is convexity, always in the holder's favour.
+# lmfinance prices 5% annual bonds of 2, 10 and 30 years, lmplot draws images/bond_convexity.png.
+mkdir("images");
+mkdir("data");
+sim = _dsl_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
+let b2 = instrument.bond(100.0, 0.05, 2.0, 1);
+let b10 = instrument.bond(100.0, 0.05, 10.0, 1);
+let b30 = instrument.bond(100.0, 0.05, 30.0, 1);
+let rows = "";
+for (i in range(0, 49)) {
+  let y = 0.0025 + float(i) * 0.0025;
+  rows = rows + str(y * 100.0) + " " + str(pricing.bond_price_from_yield(b2, y)) + " " + str(pricing.bond_price_from_yield(b10, y)) + " " + str(pricing.bond_price_from_yield(b30, y)) + "\n";
+}
+lmf.save_text("data/bond_price_yield.csv", rows);
+# a par bond at its coupon yield: price 100; Macaulay duration 8.1078 for the 10-year bond (closed form); modified = / 1.05
+lmf.assert_close(pricing.bond_price_from_yield(b10, 0.05), 100.0, 0.0000001);
+lmf.assert_close(pricing.bond_macaulay_duration(b10, 0.05), 8.107822, 0.000001);
+let d10 = pricing.bond_duration(b10, 0.05);
+let cv = pricing.bond_convexity(b10, 0.05);
+lmf.save_text("data/bond_tangent.csv", str(d10) + " " + str(cv) + "\n");
+lmf.print("10y bond: modified duration " + str(d10) + ", convexity " + str(cv));
+# the second-order estimate P (1 - D dy + C dy^2 / 2) at +2% is within a few cents of the exact price
+let dy = 0.02;
+lmf.assert_close(100.0 * (1.0 - d10 * dy + 0.5 * cv * dy * dy), pricing.bond_price_from_yield(b10, 0.07), 0.15);
+end _dsl_
+savedsl(sim, "data/bond_convexity-sim.dslb");
+r = system ${dsl_cli(sim)} --dsl data/bond_convexity-sim.dslb;
+assert(r.code == 0);
+
+draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+plot.png("images/bond_convexity.png", 900, 600);
+plot.cmd("set border 3; set tics nomirror; set grid lc rgb '#dddddd'; set key top right box opaque");
+plot.cmd("set title 'Price against yield for 5% coupon bonds, and the duration tangent'");
+plot.cmd("set xlabel 'yield [%]'; set ylabel 'price per 100 face'; set xrange [0:12]; set yrange [40:230]");
+plot.cmd("d = system('cut -d\" \" -f1 data/bond_tangent.csv') + 0");
+plot.cmd("plot 'data/bond_price_yield.csv' u 1:2 w l lw 3 lc rgb '#2ca02c' t '2 years', '' u 1:3 w l lw 3 lc rgb '#1f77b4' t '10 years', '' u 1:4 w l lw 3 lc rgb '#d62728' t '30 years', 100 * (1 - d * (x - 5) / 100.0) w l lw 2 dt 2 lc rgb 'black' t 'duration tangent (10y)'");
+plot.close();
+end _dsl_
+savedsl(draw, "data/bond_convexity-draw.dslb");
+r = system ${dsl_cli(draw)} --dsl data/bond_convexity-draw.dslb;
+assert(r.code == 0);
+println("wrote images/bond_convexity.png");

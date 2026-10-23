@@ -1,4 +1,5 @@
 # Rate and equity risk for a small book: swap DV01, bond DV01, option Greeks, normal VaR and expected shortfall.
+mkdir("build/examples");
 out = ARGV.len() > 0 ? ARGV[0] : "build/portfolio_risk.dslb";
 p = _dsl_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
 market.set_date("2024-01-02");
@@ -19,3 +20,5 @@ lmf.print("10-day 99% VaR " + str(var99) + ", ES " + str(es99));
 lmf.check(es99 > var99, "expected shortfall exceeds VaR");
 end _dsl_
 savedsl(p, out);
+r = system ${dsl_cli(p)} --dsl ${out};
+assert(r.code == 0);

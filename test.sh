@@ -115,16 +115,46 @@ expect_error assertfail 'lmf.assert_close(1.0, 2.0, 0.1);' "assert_close failed"
 expect_error checkfail 'lmf.check(1.0 > 2.0, "one is not greater than two");' "check failed: one is not greater"
 ok "errors stop the program with exit 3 and a clear message (16 cases)"
 
-# Combined pipelines (lmfinance computes, lmplot draws). Need lmplot on PATH, or network for install=.
+# README gallery: every linked example and image exists, images are valid PNG/GIF within the size limits.
+magic_ok() { # file
+  case "$1" in
+    *.png) [ "$(head -c 8 "$1" | od -An -tx1 | tr -d ' \n')" = "89504e470d0a1a0a" ];;
+    *.gif) [ "$(head -c 4 "$1")" = "GIF8" ];;
+    *) return 1;;
+  esac
+}
+nimg=0
+for img in $(grep -oE 'docs/images/[A-Za-z0-9_.-]+\.(png|gif)' README.md | sort -u); do
+  [ -f "$img" ] || fail "README references missing image $img"
+  magic_ok "$img" || fail "$img is not a valid PNG/GIF"
+  size=$(wc -c <"$img" | tr -d ' ')
+  case "$img" in *.gif) limit=3000000;; *) limit=300000;; esac
+  [ "$size" -le "$limit" ] || fail "$img is $size bytes (limit $limit)"
+  nimg=$((nimg+1))
+done
+[ "$nimg" -ge 6 ] || fail "README gallery shows only $nimg images"
+for ex in $(grep -oE '\(examples/[A-Za-z0-9_/.-]*\.lms\)' README.md | tr -d '()' | sort -u); do
+  [ -f "$ex" ] || fail "README links missing example $ex"
+done
+grep -q 'lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/' README.md || fail "README captions lack lmctl autorun commands"
+ok "README gallery: $nimg images valid and within size limits, every linked example exists, captions use lmctl autorun"
+
+# Gallery examples: lmfinance computes, lmplot draws (needs lmplot on PATH, or network for install=; the GIF needs ffmpeg).
 if command -v lmplot >/dev/null 2>&1 || [ "${LMFINANCE_TEST_NETWORK:-}" = 1 ]; then
-  for name in yield_curve option_greeks; do
-    rm -f "build/examples/$name.png"
-    "$LMSCRIPT" "examples/combo/$name.lms" >"$WORK/combo-$name.log" 2>&1 || { cat "$WORK/combo-$name.log" >&2; fail "combo example $name"; }
-    [ -s "build/examples/$name.png" ] || fail "combo example $name wrote no PNG"
+  ng=0
+  for src in examples/gallery/*.lms; do
+    name="$(basename "$src" .lms)"
+    if [ "$name" = option_decay ] && ! command -v ffmpeg >/dev/null 2>&1; then echo "note: $name skipped (no ffmpeg on PATH)"; continue; fi
+    timeout 300 "$LMSCRIPT" "$src" >"$WORK/gallery-$name.log" 2>&1 || { cat "$WORK/gallery-$name.log" >&2; fail "gallery example $name"; }
+    ng=$((ng+1))
   done
-  ok "lmfinance + lmplot pipelines draw the yield curve and the option profile"
+  for img in images/*.png images/*.gif; do
+    [ -s "$img" ] || continue
+    magic_ok "$img" || fail "$img is not a valid PNG/GIF"
+  done
+  ok "$ng gallery examples run and wrote valid images (docs/images are refreshed by examples/render-all.sh)"
 else
-  ok "combo examples skipped (no lmplot, LMFINANCE_TEST_NETWORK unset)"
+  ok "gallery examples skipped (no lmplot on PATH, LMFINANCE_TEST_NETWORK unset): docs/images not regenerated"
 fi
 
 set +e; "$HOST" --dsl "$WORK/does-not-exist.dslb" >/dev/null 2>&1; code=$?; set -e
