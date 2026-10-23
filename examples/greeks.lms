@@ -1,0 +1,18 @@
+# Delta, gamma, vega, theta and rho of an at-the-money call: analytic, bumped and Monte Carlo agree. Delta/gamma profile to CSV.
+out = ARGV.len() > 0 ? ARGV[0] : "build/greeks.dslb";
+p = _dsl_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
+let m = model.black_scholes(100.0, 0.05, 0.0, 0.2);
+let call = instrument.european_call(100.0, 1.0);
+let r = pricing.price(call, m, pricing.analytic());
+lmf.print("analytic  delta " + str(r.delta()) + " gamma " + str(r.gamma()) + " vega " + str(r.vega()) + " rho " + str(r.rho()));
+let tree = pricing.binomial(2000);
+lmf.print("binomial  delta " + str(risk.delta(call, m, tree)) + " gamma " + str(risk.gamma(call, m, tree)) + " vega " + str(risk.vega(call, m, tree)));
+let mc = pricing.monte_carlo(400000, 11);
+lmf.print("MC (CRN)  delta " + str(risk.delta(call, m, mc)) + " vega " + str(risk.vega(call, m, mc)));
+lmf.assert_close(risk.delta(call, m, tree), r.delta(), 0.001);
+lmf.assert_close(risk.vega(call, m, tree), r.vega(), 0.05);
+lmf.assert_close(risk.delta(call, m, mc), r.delta(), 0.01);
+lmf.assert_close(risk.theta(call, m, pricing.analytic()), r.theta(), 0.001);
+risk.save_profile(call, m, pricing.analytic(), 60.0, 140.0, 161, "build/examples/profile.csv");
+end _dsl_
+savedsl(p, out);

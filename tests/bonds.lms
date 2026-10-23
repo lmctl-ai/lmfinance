@@ -1,0 +1,43 @@
+# Fixed income: price, yield, duration and convexity against closed forms; curve pricing and DV01.
+out = ARGV.len() > 0 ? ARGV[0] : "build/bonds.dslb";
+p = _dsl_ cli="lmfinance";
+# a 10-year 5% annual-coupon bond priced at a 5% yield is worth par; Macaulay duration (1+y)/y * (1 - (1+y)^-n) = 8.1078
+let b = instrument.bond(100.0, 0.05, 10.0, 1);
+lmf.assert_close(pricing.bond_price_from_yield(b, 0.05), 100.0, 0.0000001);
+lmf.assert_close(pricing.bond_macaulay_duration(b, 0.05), 8.107822, 0.000001);
+lmf.assert_close(pricing.bond_duration(b, 0.05), 8.107822 / 1.05, 0.000001);
+# price at 6% from the annuity formula: 5 * (1 - 1.06^-10)/0.06 + 100 * 1.06^-10 = 92.639913
+lmf.assert_close(pricing.bond_price_from_yield(b, 0.06), 92.639913, 0.000001);
+# yield is the inverse of price
+lmf.assert_close(pricing.bond_yield(b, 92.639913), 0.06, 0.0000001);
+lmf.assert_close(pricing.bond_yield(b, 100.0), 0.05, 0.0000001);
+# convexity matches the price change: P(y+dy) + P(y-dy) - 2P = P * convexity * dy^2
+let dy = 0.0001;
+let second = pricing.bond_price_from_yield(b, 0.05 + dy) + pricing.bond_price_from_yield(b, 0.05 - dy) - 200.0;
+lmf.assert_close(second / (100.0 * dy * dy), pricing.bond_convexity(b, 0.05), 0.01);
+# semiannual 6% 5-year bond at 6% yield is also par; accrued interest is zero on the issue date
+let s = instrument.bond(1000.0, 0.06, 5.0, 2);
+lmf.assert_close(pricing.bond_price_from_yield(s, 0.06), 100.0, 0.0000001);
+lmf.assert_close(pricing.bond_accrued(s), 0.0, 0.0);
+# a zero-coupon bond: 100 / 1.04^5 = 82.192711, duration equals the maturity
+let z = instrument.zero_bond(100.0, 5.0);
+lmf.assert_close(pricing.bond_price_from_yield(z, 0.04), 82.192711, 0.000001);
+lmf.assert_close(pricing.bond_macaulay_duration(z, 0.04), 5.0, 0.0000001);
+lmf.assert_close(pricing.bond_yield(z, 82.192711), 0.04, 0.0000001);
+# on a flat curve the zero bond is worth the discount factor times face
+market.set_date("2024-01-02");
+let flat = market.flat_curve(0.03);
+lmf.assert_close(pricing.bond_clean_price(z, flat), 100.0 * flat.discount(1827.0 / 365.0), 0.0000001);
+lmf.assert_close(flat.discount(5.0), pow(2.718281828459045, -0.15), 0.0000001);
+# the coupon bond is the sum of its discounted cash flows on the actual dates (leap days at 2024, 2028 and 2032 make the years 366 days long)
+let cf = 0.0;
+for (i in range(1, 11)) { cf = cf + 5.0 * flat.discount(float(365 * i + 1 + (i - 1) / 4) / 365.0); }
+cf = cf + 100.0 * flat.discount(float(365 * 10 + 3) / 365.0);
+lmf.assert_close(pricing.bond_clean_price(b, flat), cf, 0.0000001);
+lmf.assert_close(pricing.bond_npv(instrument.bond(1000.0, 0.05, 10.0, 1), flat), 10.0 * pricing.bond_clean_price(b, flat), 0.00001);
+# DV01 (price drop for +1bp of continuously compounded zero rate) equals Macaulay duration * price * 1bp
+let dv01 = risk.bond_dv01(b, flat);
+let y = pricing.bond_yield(b, pricing.bond_clean_price(b, flat));
+lmf.assert_close(dv01, pricing.bond_macaulay_duration(b, y) * pricing.bond_clean_price(b, flat) * 0.0001, 0.0005);
+end _dsl_
+savedsl(p, out);

@@ -1,0 +1,45 @@
+# Heston stochastic volatility: the Black-Scholes limit, put-call parity, and recovering parameters by calibration.
+out = ARGV.len() > 0 ? ARGV[0] : "build/heston.dslb";
+p = _dsl_ cli="lmfinance";
+let a = pricing.analytic();
+let call = instrument.european_call(100.0, 1.0);
+let put = instrument.european_put(100.0, 1.0);
+# vol of vol -> 0 with v0 = theta = 0.04 is Black-Scholes with vol 20%: 10.4506
+let limit = model.heston(100.0, 0.05, 0.0, 0.04, 1.5, 0.04, 0.0001, 0.0);
+lmf.assert_close(pricing.price(call, limit, a).price(), 10.4506, 0.0001);
+# put-call parity holds for any Heston parameters
+let h = model.heston(100.0, 0.05, 0.02, 0.04, 2.0, 0.05, 0.4, -0.7);
+let c = pricing.price(call, h, a).price();
+let q = pricing.price(put, h, a).price();
+lmf.assert_close(c - q, 100.0 * pow(2.718281828459045, -0.02) - 100.0 * pow(2.718281828459045, -0.05), 0.000001);
+# negative correlation skews the smile: the implied vol of a low strike exceeds the one of a high strike
+let bs = model.black_scholes(100.0, 0.05, 0.02, 0.2);
+let lo = instrument.european_put(80.0, 1.0);
+let hi = instrument.european_call(120.0, 1.0);
+let ivlo = calibration.implied_vol(lo, bs, a, pricing.price(lo, h, a).price());
+let ivhi = calibration.implied_vol(hi, bs, a, pricing.price(hi, h, a).price());
+lmf.check(ivlo > ivhi + 0.02, "negative correlation: downside skew");
+# calibration: synthetic smile from known parameters, fitted back (5 strikes x 3 maturities)
+let truth = model.heston(100.0, 0.03, 0.0, 0.04, 1.5, 0.05, 0.5, -0.6);
+let bsm = model.black_scholes(100.0, 0.03, 0.0, 0.2);
+let fit = calibration.heston(100.0, 0.03, 0.0);
+for (m in range(0, 3)) {
+  let years = 0.5 + 0.5 * float(m);
+  for (k in range(0, 5)) {
+    let strike = 80.0 + 10.0 * float(k);
+    let opt = instrument.european_call(strike, years);
+    let px = pricing.price(opt, truth, a).price();
+    fit.quote(strike, years, calibration.implied_vol(opt, bsm, a, px));
+  }
+}
+fit.guess(0.06, 1.0, 0.06, 0.8, -0.3);
+let fitted = fit.fit();
+lmf.assert_close(fit.error(), 0.0, 0.0001);
+lmf.assert_close(fitted.param("rho"), -0.6, 0.02);
+lmf.assert_close(fitted.param("v0"), 0.04, 0.003);
+lmf.assert_close(fitted.param("sigma"), 0.5, 0.05);
+# the fitted model reprices the options
+let opt = instrument.european_call(90.0, 1.0);
+lmf.assert_close(pricing.price(opt, fitted, a).price(), pricing.price(opt, truth, a).price(), 0.01);
+end _dsl_
+savedsl(p, out);

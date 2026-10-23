@@ -1,0 +1,4 @@
+# name repo-or-url pin  (scripts/sync-deps.sh fetches each into third_party/NAME)
+# a 40-hex pin is a git commit; a 64-hex pin is the sha256 of a release tarball (only boost/ headers are extracted)
+quantlib https://github.com/lballabio/QuantLib.git ab4cb476d35f7275834bc05b47d1324403d1823b
+boost https://github.com/boostorg/boost/releases/download/boost-1.89.0/boost-1.89.0-b2-nodocs.tar.gz aa25e7b9c227c21abb8a681efd4fe6e54823815ffc12394c9339de998eb503fb

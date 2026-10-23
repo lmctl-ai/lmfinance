@@ -1,0 +1,48 @@
+# Yield curves and interest rate swaps.
+out = ARGV.len() > 0 ? ARGV[0] : "build/curves_swaps.dslb";
+p = _dsl_ cli="lmfinance";
+market.set_date("2024-01-02");
+lmf.check(market.date() == "2024-01-02", "evaluation date");
+# a flat 5% continuous curve: D(t) = exp(-0.05 t), zero = forward = 5%
+let flat = market.flat_curve(0.05);
+lmf.assert_close(flat.discount(2.0), pow(2.718281828459045, -0.1), 0.000000001);
+lmf.assert_close(flat.zero(3.0), 0.05, 0.000000001);
+lmf.assert_close(flat.forward(1.0, 2.0), 0.05, 0.000000001);
+# a zero curve through nodes: exact at the nodes, linear in between, continuous compounding
+let z = market.zero_curve().zero(1.0, 0.02).zero(2.0, 0.03).zero(5.0, 0.04).build();
+lmf.assert_close(z.zero(2.0), 0.03, 0.000000001);
+lmf.assert_close(z.zero(1.5), 0.025, 0.000001);
+lmf.assert_close(z.discount(5.0), pow(2.718281828459045, -0.2), 0.000000001);
+# forward rate between t1 and t2: (z2 t2 - z1 t1) / (t2 - t1)
+lmf.assert_close(z.forward(1.0, 2.0), 0.04, 0.000001);
+# an upward curve has forwards above zeros; a parallel bump moves every zero rate by the bump
+lmf.check(z.forward(2.0, 5.0) > z.zero(5.0), "forward above zero on an upward curve");
+lmf.assert_close(z.bumped(0.0001).zero(3.0), z.zero(3.0) + 0.0001, 0.00000001);
+# swap on the flat curve: the par rate is (1 - D(T)) / annuity, 5.127% for T=5 up to day count and calendar effects
+let sw = instrument.swap(1000000.0, 0.05, 5.0);
+let par = pricing.swap_par_rate(sw, flat);
+lmf.assert_close(par, 0.05127, 0.0003);
+# a swap struck at the par rate is worth nothing; the NPV is linear in the fixed rate with slope = annuity
+let atpar = instrument.swap(1000000.0, par, 5.0);
+lmf.assert_close(pricing.swap_npv(atpar, flat), 0.0, 0.0001);
+let annuity = pricing.swap_annuity(sw, flat);
+lmf.assert_close(annuity / 1000000.0, 4.31, 0.03);
+lmf.assert_close(pricing.swap_npv(sw, flat), (par - 0.05) * annuity, 0.01);
+# payer and receiver are opposite
+let rec = instrument.swap(1000000.0, 0.05, 5.0).receiver();
+lmf.assert_close(pricing.swap_npv(rec, flat), -pricing.swap_npv(sw, flat), 0.000001);
+# bootstrapping: deposits and swaps are repriced exactly by the curve built from them
+let cu = market.bootstrap_curve().deposit("3M", 0.0300).deposit("6M", 0.0310).swap("2Y", 0.0350).swap("5Y", 0.0400).swap("10Y", 0.0420).build();
+lmf.assert_close(pricing.swap_par_rate(instrument.swap(1.0, 0.04, 5.0), cu), 0.0400, 0.0000001);
+lmf.assert_close(pricing.swap_par_rate(instrument.swap(1.0, 0.04, 2.0), cu), 0.0350, 0.0000001);
+lmf.assert_close(pricing.swap_par_rate(instrument.swap(1.0, 0.04, 10.0), cu), 0.0420, 0.0000001);
+lmf.assert_close(pricing.swap_npv(instrument.swap(5000000.0, 0.04, 5.0), cu), 0.0, 0.001);
+# discount factors fall monotonically
+lmf.check(cu.discount(1.0) > cu.discount(2.0) && cu.discount(2.0) > cu.discount(5.0) && cu.discount(5.0) > cu.discount(10.0), "monotone discount factors");
+# swap DV01: the receiver of a par swap gains when rates fall; a payer loses; DV01 magnitude ~ annuity * 1bp
+let d = risk.swap_dv01(instrument.swap(1000000.0, 0.04, 5.0), cu);
+lmf.check(d > 0.0, "payer gains when rates rise");
+lmf.assert_close(d, 1000000.0 * 4.5 * 0.0001, 40.0);
+lmf.assert_close(risk.swap_dv01(instrument.swap(1000000.0, 0.04, 5.0).receiver(), cu), -d, 0.000001);
+end _dsl_
+savedsl(p, out);

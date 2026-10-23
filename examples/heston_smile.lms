@@ -1,0 +1,26 @@
+# The volatility smile of a Heston model, and a calibration that recovers its parameters from the smile.
+out = ARGV.len() > 0 ? ARGV[0] : "build/heston_smile.dslb";
+p = _dsl_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
+let a = pricing.analytic();
+let truth = model.heston(100.0, 0.03, 0.0, 0.04, 1.5, 0.05, 0.5, -0.6);
+let bs = model.black_scholes(100.0, 0.03, 0.0, 0.2);
+let fit = calibration.heston(100.0, 0.03, 0.0);
+let rows = "";
+for (k in range(0, 21)) {
+  let strike = 70.0 + 3.0 * float(k);
+  let opt = instrument.european_call(strike, 1.0);
+  let iv = calibration.implied_vol(opt, bs, a, pricing.price(opt, truth, a).price());
+  rows = rows + str(strike) + " " + str(iv) + "\n";
+  fit.quote(strike, 1.0, iv);
+}
+lmf.save_text("build/examples/smile.csv", rows);
+fit.guess(0.09, 1.0, 0.09, 1.0, -0.2);
+let fitted = fit.fit();
+lmf.print("fit error " + str(fit.error()));
+lmf.print("v0 " + str(fitted.param("v0")) + " kappa " + str(fitted.param("kappa")) + " theta " + str(fitted.param("theta")) + " sigma " + str(fitted.param("sigma")) + " rho " + str(fitted.param("rho")));
+lmf.assert_close(fit.error(), 0.0, 0.0001);
+lmf.assert_close(fitted.param("rho"), -0.6, 0.1);
+let opt = instrument.european_call(100.0, 1.0);
+lmf.assert_close(pricing.price(opt, fitted, a).price(), pricing.price(opt, truth, a).price(), 0.01);
+end _dsl_
+savedsl(p, out);

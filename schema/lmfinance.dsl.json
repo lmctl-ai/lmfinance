@@ -1,0 +1,762 @@
+{
+  "dsl.schema": 2,
+  "name": "lmfinance",
+  "types": {
+    "MarketApi": {
+      "methods": {
+        "set_date": [
+          {
+            "params": [
+              "string"
+            ],
+            "returns": "void"
+          }
+        ],
+        "date": [
+          {
+            "params": [],
+            "returns": "string"
+          }
+        ],
+        "flat_curve": [
+          {
+            "params": [
+              "float"
+            ],
+            "returns": "Curve"
+          }
+        ],
+        "zero_curve": [
+          {
+            "params": [],
+            "returns": "CurveBuilder"
+          }
+        ],
+        "bootstrap_curve": [
+          {
+            "params": [],
+            "returns": "CurveBuilder"
+          }
+        ]
+      }
+    },
+    "CurveBuilder": {
+      "methods": {
+        "zero": [
+          {
+            "params": [
+              "float",
+              "float"
+            ],
+            "returns": "CurveBuilder"
+          }
+        ],
+        "deposit": [
+          {
+            "params": [
+              "string",
+              "float"
+            ],
+            "returns": "CurveBuilder"
+          }
+        ],
+        "swap": [
+          {
+            "params": [
+              "string",
+              "float"
+            ],
+            "returns": "CurveBuilder"
+          }
+        ],
+        "build": [
+          {
+            "params": [],
+            "returns": "Curve"
+          }
+        ]
+      }
+    },
+    "Curve": {
+      "methods": {
+        "discount": [
+          {
+            "params": [
+              "float"
+            ],
+            "returns": "float"
+          }
+        ],
+        "zero": [
+          {
+            "params": [
+              "float"
+            ],
+            "returns": "float"
+          }
+        ],
+        "forward": [
+          {
+            "params": [
+              "float",
+              "float"
+            ],
+            "returns": "float"
+          }
+        ],
+        "bumped": [
+          {
+            "params": [
+              "float"
+            ],
+            "returns": "Curve"
+          }
+        ],
+        "save_csv": [
+          {
+            "params": [
+              "string",
+              "float",
+              "int"
+            ],
+            "returns": "void"
+          }
+        ]
+      }
+    },
+    "InstrumentApi": {
+      "methods": {
+        "european_call": [
+          {
+            "params": [
+              "float",
+              "float"
+            ],
+            "returns": "Option"
+          }
+        ],
+        "european_put": [
+          {
+            "params": [
+              "float",
+              "float"
+            ],
+            "returns": "Option"
+          }
+        ],
+        "american_call": [
+          {
+            "params": [
+              "float",
+              "float"
+            ],
+            "returns": "Option"
+          }
+        ],
+        "american_put": [
+          {
+            "params": [
+              "float",
+              "float"
+            ],
+            "returns": "Option"
+          }
+        ],
+        "bond": [
+          {
+            "params": [
+              "float",
+              "float",
+              "float",
+              "int"
+            ],
+            "returns": "Bond"
+          }
+        ],
+        "zero_bond": [
+          {
+            "params": [
+              "float",
+              "float"
+            ],
+            "returns": "Bond"
+          }
+        ],
+        "swap": [
+          {
+            "params": [
+              "float",
+              "float",
+              "float"
+            ],
+            "returns": "Swap"
+          }
+        ]
+      }
+    },
+    "Option": {
+      "methods": {
+        "strike": [
+          {
+            "params": [],
+            "returns": "float"
+          }
+        ],
+        "years": [
+          {
+            "params": [],
+            "returns": "float"
+          }
+        ]
+      }
+    },
+    "Bond": {
+      "methods": {
+        "years": [
+          {
+            "params": [],
+            "returns": "float"
+          }
+        ]
+      }
+    },
+    "Swap": {
+      "methods": {
+        "receiver": [
+          {
+            "params": [],
+            "returns": "Swap"
+          }
+        ],
+        "payer": [
+          {
+            "params": [],
+            "returns": "Swap"
+          }
+        ],
+        "spread": [
+          {
+            "params": [
+              "float"
+            ],
+            "returns": "Swap"
+          }
+        ]
+      }
+    },
+    "ModelApi": {
+      "methods": {
+        "black_scholes": [
+          {
+            "params": [
+              "float",
+              "float",
+              "float",
+              "float"
+            ],
+            "returns": "Model"
+          }
+        ],
+        "heston": [
+          {
+            "params": [
+              "float",
+              "float",
+              "float",
+              "float",
+              "float",
+              "float",
+              "float",
+              "float"
+            ],
+            "returns": "Model"
+          }
+        ]
+      }
+    },
+    "Model": {
+      "methods": {
+        "spot": [
+          {
+            "params": [],
+            "returns": "float"
+          }
+        ],
+        "param": [
+          {
+            "params": [
+              "string"
+            ],
+            "returns": "float"
+          }
+        ],
+        "with_spot": [
+          {
+            "params": [
+              "float"
+            ],
+            "returns": "Model"
+          }
+        ],
+        "with_rate": [
+          {
+            "params": [
+              "float"
+            ],
+            "returns": "Model"
+          }
+        ],
+        "with_vol": [
+          {
+            "params": [
+              "float"
+            ],
+            "returns": "Model"
+          }
+        ]
+      }
+    },
+    "PricingApi": {
+      "methods": {
+        "analytic": [
+          {
+            "params": [],
+            "returns": "Engine"
+          }
+        ],
+        "baw": [
+          {
+            "params": [],
+            "returns": "Engine"
+          }
+        ],
+        "binomial": [
+          {
+            "params": [
+              "int"
+            ],
+            "returns": "Engine"
+          }
+        ],
+        "binomial_tree": [
+          {
+            "params": [
+              "string",
+              "int"
+            ],
+            "returns": "Engine"
+          }
+        ],
+        "finite_diff": [
+          {
+            "params": [
+              "int",
+              "int"
+            ],
+            "returns": "Engine"
+          }
+        ],
+        "monte_carlo": [
+          {
+            "params": [
+              "int",
+              "int"
+            ],
+            "returns": "Engine"
+          }
+        ],
+        "price": [
+          {
+            "params": [
+              "Option",
+              "Model",
+              "Engine"
+            ],
+            "returns": "Result"
+          }
+        ],
+        "bond_clean_price": [
+          {
+            "params": [
+              "Bond",
+              "Curve"
+            ],
+            "returns": "float"
+          }
+        ],
+        "bond_npv": [
+          {
+            "params": [
+              "Bond",
+              "Curve"
+            ],
+            "returns": "float"
+          }
+        ],
+        "bond_accrued": [
+          {
+            "params": [
+              "Bond"
+            ],
+            "returns": "float"
+          }
+        ],
+        "bond_price_from_yield": [
+          {
+            "params": [
+              "Bond",
+              "float"
+            ],
+            "returns": "float"
+          }
+        ],
+        "bond_yield": [
+          {
+            "params": [
+              "Bond",
+              "float"
+            ],
+            "returns": "float"
+          }
+        ],
+        "bond_duration": [
+          {
+            "params": [
+              "Bond",
+              "float"
+            ],
+            "returns": "float"
+          }
+        ],
+        "bond_macaulay_duration": [
+          {
+            "params": [
+              "Bond",
+              "float"
+            ],
+            "returns": "float"
+          }
+        ],
+        "bond_convexity": [
+          {
+            "params": [
+              "Bond",
+              "float"
+            ],
+            "returns": "float"
+          }
+        ],
+        "swap_npv": [
+          {
+            "params": [
+              "Swap",
+              "Curve"
+            ],
+            "returns": "float"
+          }
+        ],
+        "swap_par_rate": [
+          {
+            "params": [
+              "Swap",
+              "Curve"
+            ],
+            "returns": "float"
+          }
+        ],
+        "swap_annuity": [
+          {
+            "params": [
+              "Swap",
+              "Curve"
+            ],
+            "returns": "float"
+          }
+        ]
+      }
+    },
+    "Engine": {
+      "methods": {
+        "name": [
+          {
+            "params": [],
+            "returns": "string"
+          }
+        ]
+      }
+    },
+    "Result": {
+      "methods": {
+        "price": [
+          {
+            "params": [],
+            "returns": "float"
+          }
+        ],
+        "stderr": [
+          {
+            "params": [],
+            "returns": "float"
+          }
+        ],
+        "delta": [
+          {
+            "params": [],
+            "returns": "float"
+          }
+        ],
+        "gamma": [
+          {
+            "params": [],
+            "returns": "float"
+          }
+        ],
+        "vega": [
+          {
+            "params": [],
+            "returns": "float"
+          }
+        ],
+        "theta": [
+          {
+            "params": [],
+            "returns": "float"
+          }
+        ],
+        "rho": [
+          {
+            "params": [],
+            "returns": "float"
+          }
+        ]
+      }
+    },
+    "RiskApi": {
+      "methods": {
+        "delta": [
+          {
+            "params": [
+              "Option",
+              "Model",
+              "Engine"
+            ],
+            "returns": "float"
+          }
+        ],
+        "gamma": [
+          {
+            "params": [
+              "Option",
+              "Model",
+              "Engine"
+            ],
+            "returns": "float"
+          }
+        ],
+        "vega": [
+          {
+            "params": [
+              "Option",
+              "Model",
+              "Engine"
+            ],
+            "returns": "float"
+          }
+        ],
+        "rho": [
+          {
+            "params": [
+              "Option",
+              "Model",
+              "Engine"
+            ],
+            "returns": "float"
+          }
+        ],
+        "theta": [
+          {
+            "params": [
+              "Option",
+              "Model",
+              "Engine"
+            ],
+            "returns": "float"
+          }
+        ],
+        "save_profile": [
+          {
+            "params": [
+              "Option",
+              "Model",
+              "Engine",
+              "float",
+              "float",
+              "int",
+              "string"
+            ],
+            "returns": "void"
+          }
+        ],
+        "bond_dv01": [
+          {
+            "params": [
+              "Bond",
+              "Curve"
+            ],
+            "returns": "float"
+          }
+        ],
+        "swap_dv01": [
+          {
+            "params": [
+              "Swap",
+              "Curve"
+            ],
+            "returns": "float"
+          }
+        ],
+        "var_normal": [
+          {
+            "params": [
+              "float",
+              "float",
+              "float",
+              "float"
+            ],
+            "returns": "float"
+          }
+        ],
+        "es_normal": [
+          {
+            "params": [
+              "float",
+              "float",
+              "float",
+              "float"
+            ],
+            "returns": "float"
+          }
+        ]
+      }
+    },
+    "CalibrationApi": {
+      "methods": {
+        "implied_vol": [
+          {
+            "params": [
+              "Option",
+              "Model",
+              "Engine",
+              "float"
+            ],
+            "returns": "float"
+          }
+        ],
+        "heston": [
+          {
+            "params": [
+              "float",
+              "float",
+              "float"
+            ],
+            "returns": "HestonFit"
+          }
+        ]
+      }
+    },
+    "HestonFit": {
+      "methods": {
+        "quote": [
+          {
+            "params": [
+              "float",
+              "float",
+              "float"
+            ],
+            "returns": "HestonFit"
+          }
+        ],
+        "guess": [
+          {
+            "params": [
+              "float",
+              "float",
+              "float",
+              "float",
+              "float"
+            ],
+            "returns": "HestonFit"
+          }
+        ],
+        "fit": [
+          {
+            "params": [],
+            "returns": "Model"
+          }
+        ],
+        "error": [
+          {
+            "params": [],
+            "returns": "float"
+          }
+        ]
+      }
+    },
+    "LmfApi": {
+      "methods": {
+        "assert_close": [
+          {
+            "params": [
+              "float",
+              "float",
+              "float"
+            ],
+            "returns": "void"
+          }
+        ],
+        "check": [
+          {
+            "params": [
+              "bool",
+              "string"
+            ],
+            "returns": "void"
+          }
+        ],
+        "save_text": [
+          {
+            "params": [
+              "string",
+              "string"
+            ],
+            "returns": "void"
+          }
+        ],
+        "print": [
+          {
+            "params": [
+              "string"
+            ],
+            "returns": "void"
+          }
+        ],
+        "version": [
+          {
+            "params": [],
+            "returns": "string"
+          }
+        ]
+      }
+    }
+  },
+  "functions": {},
+  "context": {
+    "market": "MarketApi",
+    "instrument": "InstrumentApi",
+    "model": "ModelApi",
+    "pricing": "PricingApi",
+    "risk": "RiskApi",
+    "calibration": "CalibrationApi",
+    "lmf": "LmfApi"
+  }
+}

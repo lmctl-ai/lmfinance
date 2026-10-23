@@ -1,0 +1,30 @@
+# One European call and one American put priced by every engine; binomial convergence written to CSV.
+out = ARGV.len() > 0 ? ARGV[0] : "build/option_pricing.dslb";
+p = _dsl_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
+let m = model.black_scholes(100.0, 0.05, 0.0, 0.2);
+let call = instrument.european_call(100.0, 1.0);
+let exact = pricing.price(call, m, pricing.analytic()).price();
+lmf.print("European call, analytic:      " + str(exact));
+lmf.assert_close(exact, 10.4506, 0.00005);
+let tree = pricing.price(call, m, pricing.binomial(1000)).price();
+let fd = pricing.price(call, m, pricing.finite_diff(200, 400)).price();
+let mc = pricing.price(call, m, pricing.monte_carlo(200000, 42));
+lmf.print("                  binomial:   " + str(tree));
+lmf.print("                  finite diff:" + str(fd));
+lmf.print("                  Monte Carlo:" + str(mc.price()) + " +- " + str(mc.stderr()));
+lmf.assert_close(tree, exact, 0.01);
+lmf.assert_close(fd, exact, 0.01);
+lmf.check(abs(mc.price() - exact) < 4.0 * mc.stderr(), "Monte Carlo within 4 standard errors");
+let put = instrument.american_put(100.0, 1.0);
+lmf.print("American put, binomial 1000:  " + str(pricing.price(put, m, pricing.binomial(1000)).price()));
+lmf.print("              Barone-Adesi:   " + str(pricing.price(put, m, pricing.baw()).price()));
+lmf.assert_close(pricing.price(put, m, pricing.binomial(1000)).price(), 6.0903, 0.002);
+# error of the CRR tree against the closed form for 10, 20, ... 400 steps
+let rows = "";
+for (i in range(1, 41)) {
+  let n = 10 * i;
+  rows = rows + str(n) + " " + str(pricing.price(call, m, pricing.binomial(n)).price() - exact) + "\n";
+}
+lmf.save_text("build/examples/binomial_error.csv", rows);
+end _dsl_
+savedsl(p, out);

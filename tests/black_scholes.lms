@@ -1,0 +1,47 @@
+# Black-Scholes-Merton analytic values: S=100 K=100 r=5% vol=20% T=1 (Hull, Haug and every textbook).
+out = ARGV.len() > 0 ? ARGV[0] : "build/black_scholes.dslb";
+p = _dsl_ cli="lmfinance";
+let m = model.black_scholes(100.0, 0.05, 0.0, 0.2);
+let call = instrument.european_call(100.0, 1.0);
+let put = instrument.european_put(100.0, 1.0);
+let a = pricing.analytic();
+let c = pricing.price(call, m, a);
+let q = pricing.price(put, m, a);
+lmf.assert_close(c.price(), 10.4506, 0.00005);
+lmf.assert_close(q.price(), 5.5735, 0.00005);
+# put-call parity: C - P = S - K exp(-rT)
+lmf.assert_close(c.price() - q.price(), 100.0 - 100.0 * pow(2.718281828459045, -0.05), 0.0000000001);
+# Greeks of the call
+lmf.assert_close(c.delta(), 0.636831, 0.000001);
+lmf.assert_close(c.gamma(), 0.018762, 0.000001);
+lmf.assert_close(c.vega(), 37.5240, 0.0001);
+lmf.assert_close(c.theta(), -6.4140, 0.0001);
+lmf.assert_close(c.rho(), 53.2325, 0.0001);
+# Greeks of the put: delta_put = delta_call - 1, same gamma and vega
+lmf.assert_close(q.delta(), c.delta() - 1.0, 0.0000000001);
+lmf.assert_close(q.gamma(), c.gamma(), 0.0000000001);
+lmf.assert_close(q.vega(), c.vega(), 0.0000000001);
+# bumped Greeks (risk namespace) agree with the closed forms
+lmf.assert_close(risk.delta(call, m, a), c.delta(), 0.0001);
+lmf.assert_close(risk.gamma(call, m, a), c.gamma(), 0.00001);
+lmf.assert_close(risk.vega(call, m, a), c.vega(), 0.001);
+lmf.assert_close(risk.rho(call, m, a), c.rho(), 0.001);
+lmf.assert_close(risk.theta(call, m, a), c.theta(), 0.001);
+# Hull example 15.6: S=42 K=40 r=10% vol=20% T=0.5, call 4.76 and put 0.81 (to the book's rounding)
+let hull = model.black_scholes(42.0, 0.10, 0.0, 0.2);
+lmf.assert_close(pricing.price(instrument.european_call(40.0, 0.5), hull, a).price(), 4.7657, 0.0001);
+lmf.assert_close(pricing.price(instrument.european_put(40.0, 0.5), hull, a).price(), 0.8096, 0.0001);
+# continuous dividend yield: S exp(-qT) replaces S, so parity becomes C - P = S exp(-qT) - K exp(-rT)
+let dv = model.black_scholes(100.0, 0.05, 0.03, 0.2);
+let cd = pricing.price(call, dv, a).price();
+let pd = pricing.price(put, dv, a).price();
+lmf.assert_close(cd - pd, 100.0 * pow(2.718281828459045, -0.03) - 100.0 * pow(2.718281828459045, -0.05), 0.0000000001);
+# implied volatility inverts the price
+lmf.assert_close(calibration.implied_vol(call, m, a, 10.4506), 0.2, 0.000001);
+lmf.assert_close(calibration.implied_vol(put, dv, a, pd), 0.2, 0.0000001);
+# model accessors
+lmf.assert_close(m.param("vol"), 0.2, 0.0);
+lmf.assert_close(m.with_vol(0.3).param("vol"), 0.3, 0.0);
+lmf.assert_close(m.with_spot(110.0).spot(), 110.0, 0.0);
+end _dsl_
+savedsl(p, out);

@@ -1,0 +1,21 @@
+# Rate and equity risk for a small book: swap DV01, bond DV01, option Greeks, normal VaR and expected shortfall.
+out = ARGV.len() > 0 ? ARGV[0] : "build/portfolio_risk.dslb";
+p = _dsl_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
+market.set_date("2024-01-02");
+let curve = market.zero_curve().zero(1.0, 0.040).zero(5.0, 0.042).zero(10.0, 0.044).build();
+let bond = instrument.bond(1000000.0, 0.043, 8.0, 2);
+let swap = instrument.swap(5000000.0, 0.042, 5.0).receiver();
+let bond_dv01 = risk.bond_dv01(bond, curve);
+let swap_dv01 = risk.swap_dv01(swap, curve);
+lmf.print("bond DV01 " + str(bond_dv01) + ", receiver swap DV01 " + str(swap_dv01));
+lmf.check(bond_dv01 > 0.0, "a long bond loses when rates rise");
+lmf.check(swap_dv01 < 0.0, "a receiver swap loses when rates rise");
+let m = model.black_scholes(100.0, 0.042, 0.0, 0.25);
+let call = instrument.european_call(105.0, 0.5);
+let value = 10000.0 * pricing.price(call, m, pricing.analytic()).price();
+let var99 = risk.var_normal(value + 1000000.0, 0.15, 0.99, 10.0);
+let es99 = risk.es_normal(value + 1000000.0, 0.15, 0.99, 10.0);
+lmf.print("10-day 99% VaR " + str(var99) + ", ES " + str(es99));
+lmf.check(es99 > var99, "expected shortfall exceeds VaR");
+end _dsl_
+savedsl(p, out);

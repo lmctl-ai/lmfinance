@@ -1,0 +1,30 @@
+# Monte Carlo with a seed: reproducible, unbiased within its own standard error.
+out = ARGV.len() > 0 ? ARGV[0] : "build/montecarlo.dslb";
+p = _dsl_ cli="lmfinance";
+let m = model.black_scholes(100.0, 0.05, 0.0, 0.2);
+let call = instrument.european_call(100.0, 1.0);
+let exact = pricing.price(call, m, pricing.analytic()).price();
+lmf.assert_close(exact, 10.4506, 0.00005);
+let a = pricing.price(call, m, pricing.monte_carlo(200000, 7));
+let b = pricing.price(call, m, pricing.monte_carlo(200000, 7));
+let c = pricing.price(call, m, pricing.monte_carlo(200000, 8));
+# same seed, same numbers, bit for bit
+lmf.assert_close(a.price(), b.price(), 0.0);
+lmf.assert_close(a.stderr(), b.stderr(), 0.0);
+# a different seed gives a different estimate
+lmf.check(a.price() != c.price(), "seeds 7 and 8 must differ");
+# within 4 standard errors of the closed form (the standard error is about 0.017 for 200000 antithetic paths)
+lmf.check(abs(a.price() - exact) < 4.0 * a.stderr(), "seed 7 inside 4 standard errors");
+lmf.check(abs(c.price() - exact) < 4.0 * c.stderr(), "seed 8 inside 4 standard errors");
+lmf.assert_close(a.stderr(), 0.0165, 0.004);
+# more paths shrink the error roughly as 1/sqrt(N)
+let big = pricing.price(call, m, pricing.monte_carlo(800000, 7));
+lmf.assert_close(big.stderr() / a.stderr(), 0.5, 0.05);
+# a put and the bumped Greeks with common random numbers
+let put = instrument.european_put(100.0, 1.0);
+let mp = pricing.price(put, m, pricing.monte_carlo(200000, 7));
+lmf.check(abs(mp.price() - 5.5735) < 4.0 * mp.stderr(), "put inside 4 standard errors");
+lmf.assert_close(risk.delta(call, m, pricing.monte_carlo(200000, 7)), 0.6368, 0.01);
+lmf.assert_close(risk.vega(call, m, pricing.monte_carlo(200000, 7)), 37.524, 0.8);
+end _dsl_
+savedsl(p, out);

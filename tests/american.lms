@@ -1,0 +1,38 @@
+# American options: early exercise premium and agreement of binomial trees, finite differences and Barone-Adesi-Whaley.
+# S=100 K=100 r=5% vol=20% T=1: American put 6.09 (CRR converges to 6.0903, 1000 steps give 6.0896), European put 5.5735.
+out = ARGV.len() > 0 ? ARGV[0] : "build/american.dslb";
+p = _dsl_ cli="lmfinance";
+let m = model.black_scholes(100.0, 0.05, 0.0, 0.2);
+let ap = instrument.american_put(100.0, 1.0);
+let ep = instrument.european_put(100.0, 1.0);
+let european = pricing.price(ep, m, pricing.analytic()).price();
+let bin = pricing.price(ap, m, pricing.binomial(1000)).price();
+let lr = pricing.price(ap, m, pricing.binomial_tree("lr", 1001)).price();
+let jr = pricing.price(ap, m, pricing.binomial_tree("jr", 1000)).price();
+let fd = pricing.price(ap, m, pricing.finite_diff(200, 400)).price();
+let baw = pricing.price(ap, m, pricing.baw()).price();
+lmf.assert_close(bin, 6.0903, 0.002);
+lmf.assert_close(lr, 6.0903, 0.002);
+lmf.assert_close(jr, 6.0903, 0.004);
+lmf.assert_close(fd, 6.0903, 0.01);
+lmf.assert_close(baw, 6.0903, 0.02);
+# the early exercise premium is positive and about 0.52
+lmf.assert_close(bin - european, 0.5168, 0.003);
+# a European put priced on the tree converges to the analytic value
+lmf.assert_close(pricing.price(ep, m, pricing.binomial(1000)).price(), european, 0.005);
+lmf.assert_close(pricing.price(ep, m, pricing.finite_diff(200, 400)).price(), european, 0.005);
+# without dividends an American call is never exercised early
+let ac = instrument.american_call(100.0, 1.0);
+let ec = instrument.european_call(100.0, 1.0);
+lmf.assert_close(pricing.price(ac, m, pricing.binomial(1000)).price(), pricing.price(ec, m, pricing.analytic()).price(), 0.005);
+# with a high dividend yield early exercise of the call is worth something
+let dv = model.black_scholes(100.0, 0.05, 0.08, 0.2);
+let early = pricing.price(ac, dv, pricing.binomial(1000)).price() - pricing.price(ec, dv, pricing.analytic()).price();
+lmf.check(early > 0.05, "early exercise premium of the high-dividend call");
+# lattice Greeks come with the engine; bumped Greeks agree with them
+let r = pricing.price(ap, m, pricing.binomial(1000));
+lmf.assert_close(r.delta(), -0.4, 0.05);
+lmf.assert_close(risk.delta(ap, m, pricing.binomial(1000)), r.delta(), 0.01);
+lmf.check(pricing.binomial(10).name() == "binomial", "engine name");
+end _dsl_
+savedsl(p, out);

@@ -1,0 +1,26 @@
+# Bootstrap a curve from deposits and swaps, price a bond on it, and write the curve to CSV.
+out = ARGV.len() > 0 ? ARGV[0] : "build/bond_curve.dslb";
+p = _dsl_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
+market.set_date("2024-01-02");
+let curve = market.bootstrap_curve()
+  .deposit("3M", 0.0300).deposit("6M", 0.0310)
+  .swap("2Y", 0.0350).swap("5Y", 0.0400).swap("10Y", 0.0420).swap("30Y", 0.0410).build();
+curve.save_csv("build/examples/curve.csv", 30.0, 120);
+lmf.print("5y zero rate " + str(curve.zero(5.0)) + ", discount factor " + str(curve.discount(5.0)));
+# the curve reprices its own inputs
+lmf.assert_close(pricing.swap_par_rate(instrument.swap(1.0, 0.04, 5.0), curve), 0.0400, 0.0000001);
+lmf.assert_close(pricing.swap_par_rate(instrument.swap(1.0, 0.04, 30.0), curve), 0.0410, 0.0000001);
+# a 7-year 4.5% semiannual bond on the curve, its yield, duration and DV01
+let bond = instrument.bond(100.0, 0.045, 7.0, 2);
+let clean = pricing.bond_clean_price(bond, curve);
+let ytm = pricing.bond_yield(bond, clean);
+lmf.print("bond price " + str(clean) + ", yield " + str(ytm) + ", modified duration " + str(pricing.bond_duration(bond, ytm)));
+lmf.print("DV01 per 100 face: " + str(risk.bond_dv01(bond, curve)));
+lmf.assert_close(pricing.bond_price_from_yield(bond, ytm), clean, 0.00001);
+lmf.check(clean > 100.0, "coupon 4.5% above the 7y rate prices over par");
+# a 5-year 4% payer swap, at the market: worth nothing, DV01 about 4.5 bp-years of notional
+let swap = instrument.swap(10000000.0, 0.04, 5.0);
+lmf.assert_close(pricing.swap_npv(swap, curve), 0.0, 0.01);
+lmf.print("swap DV01 on 10mm: " + str(risk.swap_dv01(swap, curve)));
+end _dsl_
+savedsl(p, out);
