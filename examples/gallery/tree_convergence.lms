@@ -1,0 +1,53 @@
+# How binomial trees converge to Black-Scholes. The same at-the-money call (10.4506) is priced with the Cox-Ross-Rubinstein,
+# Jarrow-Rudd, Tian and Leisen-Reimer trees for 5 to 400 steps. CRR, JR and Tian oscillate around the closed form with
+# the odd/even step count (error ~ 1/n), Leisen-Reimer is smooth and converges like 1/n^2: at 201 steps its error is
+# below 1e-5 while CRR at 200 is still 1e-2 (asserted). Left: prices; right: |error| on log axes. images/tree_convergence.png.
+mkdir("images");
+mkdir("data");
+sim = _dsl_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
+let m = model.black_scholes(100.0, 0.05, 0.0, 0.2);
+let call = instrument.european_call(100.0, 1.0);
+let exact = pricing.price(call, m, pricing.analytic()).price();
+lmf.assert_close(exact, 10.4506, 0.00005);
+let rows = "";
+let n = 5;
+while (n <= 400) {
+  let crr = pricing.price(call, m, pricing.binomial_tree("crr", n)).price();
+  let jr = pricing.price(call, m, pricing.binomial_tree("jr", n)).price();
+  let tian = pricing.price(call, m, pricing.binomial_tree("tian", n)).price();
+  let lr = pricing.price(call, m, pricing.binomial_tree("lr", n)).price();   # the host uses the next odd step count
+  rows = rows + str(n) + " " + str(crr) + " " + str(jr) + " " + str(tian) + " " + str(lr) + " " + str(exact) + "\n";
+  if (n < 60) { n = n + 1; } else { if (n < 150) { n = n + 5; } else { n = n + 25; } }
+}
+lmf.save_text("data/tree_convergence.csv", rows);
+let e_crr = abs(pricing.price(call, m, pricing.binomial_tree("crr", 200)).price() - exact);
+let e_lr = abs(pricing.price(call, m, pricing.binomial_tree("lr", 201)).price() - exact);
+lmf.print("error at 200 steps: CRR " + str(e_crr) + ", Leisen-Reimer " + str(e_lr));
+lmf.check(e_crr > 0.002 && e_crr < 0.03, "CRR at 200 steps is still off by about 1e-2");
+lmf.check(e_lr < 0.00001, "Leisen-Reimer at 201 steps is within 1e-5");
+# odd and even CRR step counts straddle the closed form
+let odd = pricing.price(call, m, pricing.binomial_tree("crr", 51)).price();
+let even = pricing.price(call, m, pricing.binomial_tree("crr", 50)).price();
+lmf.check((odd - exact) * (even - exact) < 0.0, "consecutive CRR step counts bracket the closed form");
+end _dsl_
+savedsl(sim, "data/tree_convergence-sim.dslb");
+r = system ${dsl_cli(sim)} --dsl data/tree_convergence-sim.dslb;
+if (r.code != 0) { println(r.stdout); }
+assert(r.code == 0);
+
+draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+plot.png("images/tree_convergence.png", 1000, 480);
+plot.cmd("set multiplot layout 1,2 title 'Binomial trees against Black-Scholes 10.4506 (lmfinance): odd/even oscillation and the Leisen-Reimer shortcut' font ',12'");
+plot.cmd("set border 3; set tics nomirror; set grid lc rgb '#dddddd'; set xlabel 'steps'; set ylabel 'call price'; set xrange [5:100]; set yrange [10.3:10.6]");
+plot.cmd("set key top right box opaque font ',9' samplen 2");
+plot.cmd("plot 'data/tree_convergence.csv' u 1:6 w l lw 1.5 lc rgb 'black' t 'Black-Scholes', '' u 1:2 w lp pt 7 ps 0.5 lw 1.2 lc rgb '#1f77b4' t 'CRR', '' u 1:3 w lp pt 5 ps 0.5 lw 1.2 lc rgb '#ff7f0e' t 'Jarrow-Rudd', '' u 1:4 w lp pt 9 ps 0.5 lw 1.2 lc rgb '#2ca02c' t 'Tian', '' u 1:5 w lp pt 13 ps 0.5 lw 1.2 lc rgb '#d62728' t 'Leisen-Reimer'");
+plot.cmd("set logscale xy; set format y '10^{%L}'; set xrange [5:400]; set yrange [1e-8:1]; set ylabel '|price - Black-Scholes|'; set key bottom left");
+plot.cmd("plot 'data/tree_convergence.csv' u 1:(abs($2-$6)) w lp pt 7 ps 0.5 lw 1.2 lc rgb '#1f77b4' t 'CRR', '' u 1:(abs($3-$6)) w lp pt 5 ps 0.5 lw 1.2 lc rgb '#ff7f0e' t 'Jarrow-Rudd', '' u 1:(abs($4-$6)) w lp pt 9 ps 0.5 lw 1.2 lc rgb '#2ca02c' t 'Tian', '' u 1:(abs($5-$6)) w lp pt 13 ps 0.5 lw 1.2 lc rgb '#d62728' t 'Leisen-Reimer', 0.3/x w l dt 2 lc rgb '#555555' t '1/n', 0.3/x**2 w l dt 3 lc rgb '#555555' t '1/n^2'");
+plot.cmd("unset multiplot");
+plot.close();
+end _dsl_
+savedsl(draw, "data/tree_convergence-draw.dslb");
+r = system ${dsl_cli(draw)} --dsl data/tree_convergence-draw.dslb;
+if (r.code != 0) { println(r.stderr); }
+assert(r.code == 0);
+println("wrote images/tree_convergence.png");

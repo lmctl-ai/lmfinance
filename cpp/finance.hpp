@@ -18,9 +18,20 @@ struct CurveBuilder {
   std::vector<std::pair<double, double>> zeros;                     // years, continuous zero rate
   std::vector<std::pair<std::string, double>> deposits, swaps;      // tenor, par rate
 };
-struct Option { bool call = true, american = false; double strike = 0, years = 0; };
+enum class Exotic { None, Barrier, Asian };
+struct Option {
+  bool call = true, american = false; double strike = 0, years = 0;
+  Exotic exotic = Exotic::None;
+  std::string barrier_type;                                         // up-in, up-out, down-in, down-out
+  double barrier = 0, rebate = 0;
+  std::string averaging;                                            // geometric or arithmetic (discrete, equally spaced)
+  int fixings = 0;
+};
 struct Bond { double face = 100, coupon = 0, years = 0; int freq = 1; bool zero = false; };
 struct Swap { double notional = 1, rate = 0, years = 0; bool receiver = false; double spread = 0; };
+struct CapFloor { bool cap = true; double notional = 1, strike = 0, years = 0; };
+struct Swaption { Swap swap; double expiry = 0; };                  // option to enter `swap` in `expiry` years
+struct Series { std::vector<double> v; };                           // profit-and-loss or return samples
 struct Model {
   bool heston = false;
   double spot = 0, r = 0, q = 0, vol = 0;                           // Black-Scholes-Merton
@@ -67,6 +78,20 @@ double bond_convexity(const Clock &, const Bond &, double y);
 double swap_npv(const Clock &, const Swap &, const Curve &);
 double swap_par_rate(const Clock &, const Swap &, const Curve &);
 double swap_annuity(const Clock &, const Swap &, const Curve &);
+
+// Black (lognormal, flat volatility) prices of caps/floors on Euribor 6M and of swaptions on the swap conventions above.
+double capfloor_npv(const Clock &, const CapFloor &, const Curve &, double vol);
+double capfloor_implied_vol(const Clock &, const CapFloor &, const Curve &, double price);
+double capfloor_atm_rate(const Clock &, const CapFloor &, const Curve &);
+double swaption_npv(const Clock &, const Swaption &, const Curve &, double vol);
+double swaption_implied_vol(const Clock &, const Swaption &, const Curve &, double price);
+double swaption_forward_rate(const Clock &, const Swaption &, const Curve &);
+
+// Empirical risk from samples: whitespace/comma separated numbers in a file (one header line allowed).
+Series load_series(const std::string &path);
+double series_quantile(const Series &, double p);                   // linear interpolation between order statistics
+double series_var(const Series &, double confidence);               // loss (positive) exceeded with probability 1 - confidence
+double series_es(const Series &, double confidence);                // mean loss beyond that quantile
 
 double implied_vol(const Clock &, const Option &, const Model &, const Engine &, double price);
 void heston_fit(const Clock &, HestonFit &);

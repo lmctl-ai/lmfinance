@@ -1,0 +1,26 @@
+# Empirical VaR and expected shortfall from a sample file (header line, mixed separators), with hand-computed answers.
+out = ARGV.len() > 0 ? ARGV[0] : "build/series.dslb";
+mkdir("build/examples");
+write_file("build/examples/pnl.csv", "pnl\n-50, -40\n-30 -20 -10\n0\n10\n20\n30\n40\n");
+p = _dsl_ cli="lmfinance";
+let s = risk.series("build/examples/pnl.csv");
+lmf.check(s.size() == 10, "ten samples, header skipped");
+lmf.assert_close(s.get(0), -50.0, 0.0);
+lmf.assert_close(s.get(9), 40.0, 0.0);
+lmf.assert_close(s.mean(), -5.0, 0.0);
+lmf.assert_close(s.min(), -50.0, 0.0);
+lmf.assert_close(s.max(), 40.0, 0.0);
+lmf.assert_close(s.std(), sqrt(916.6666666666666), 0.0000001);
+# quantiles interpolate between order statistics: q(0.5) = -5, q(0.1) = -41, q(0) = min, q(1) = max
+lmf.assert_close(s.quantile(0.5), -5.0, 0.0);
+lmf.assert_close(s.quantile(0.1), -41.0, 0.000000001);
+lmf.assert_close(s.quantile(0.0), -50.0, 0.0);
+lmf.assert_close(s.quantile(1.0), 40.0, 0.0);
+# 90% VaR is the loss at the 10% quantile; ES averages the samples at or beyond it
+lmf.assert_close(s.var(0.9), 41.0, 0.000000001);
+lmf.assert_close(s.es(0.9), 50.0, 0.000000001);
+lmf.assert_close(s.var(0.8), 32.0, 0.000000001);
+lmf.assert_close(s.es(0.8), 45.0, 0.000000001);
+lmf.check(s.es(0.9) >= s.var(0.9), "ES is at least VaR");
+end _dsl_
+savedsl(p, out);

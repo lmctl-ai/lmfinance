@@ -1,0 +1,64 @@
+# Asian (average-price) options (needs lmfinance 0.1.2). Averaging the spot over the life of the option cuts the
+# variance of the payoff, so an Asian call is cheaper than the vanilla, and the more fixings the cheaper, down to the
+# continuous limit. lmfinance prices the geometric average in closed form and the arithmetic average by Monte Carlo
+# with the geometric option as control variate (standard errors below 0.01). Asserted: one fixing = the vanilla,
+# arithmetic > geometric (AM-GM) by less than 0.6, prices decreasing in the number of fixings. lmplot draws
+# images/asian_options.png: price against the number of fixings, and against the strike for 12 monthly fixings.
+mkdir("images");
+mkdir("data");
+sim = _dsl_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
+let a = pricing.analytic();
+let mc = pricing.monte_carlo(40000, 7);
+let m = model.black_scholes(100.0, 0.05, 0.0, 0.25);
+let vanilla = pricing.price(instrument.european_call(100.0, 1.0), m, a).price();
+let rows = "";
+let prev = 1000.0;
+for (k in range(0, 8)) {
+  let fixings = 1;
+  for (q in range(0, k)) { fixings = fixings * 2; }        # 1, 2, 4, ... 128
+  let geo = pricing.price(instrument.asian_call(100.0, 1.0, "geometric", fixings), m, a).price();
+  let ari = pricing.price(instrument.asian_call(100.0, 1.0, "arithmetic", fixings), m, mc);
+  if (fixings == 1) { lmf.assert_close(geo, vanilla, 0.000001); }
+  lmf.check(geo <= prev + 0.000001, "more fixings, lower geometric price");
+  lmf.check(ari.price() > geo - 0.000001, "the arithmetic average is worth at least the geometric one");
+  lmf.check(ari.price() - geo < 0.6, "and not much more");
+  lmf.check(ari.stderr() < 0.01, "control variate keeps the standard error below 0.01");
+  prev = geo;
+  rows = rows + str(fixings) + " " + str(geo) + " " + str(ari.price()) + " " + str(ari.stderr()) + " " + str(vanilla) + "\n";
+}
+lmf.save_text("data/asian_fixings.csv", rows);
+lmf.print("vanilla " + str(vanilla) + "; with 128 fixings: geometric " + str(prev));
+# against the strike, 12 monthly fixings, call and put
+let krows = "";
+for (i in range(0, 21)) {
+  let k = 70.0 + 3.0 * float(i);
+  let vc = pricing.price(instrument.european_call(k, 1.0), m, a).price();
+  let gc = pricing.price(instrument.asian_call(k, 1.0, "geometric", 12), m, a).price();
+  let ac = pricing.price(instrument.asian_call(k, 1.0, "arithmetic", 12), m, mc).price();
+  let vp = pricing.price(instrument.european_put(k, 1.0), m, a).price();
+  let gp = pricing.price(instrument.asian_put(k, 1.0, "geometric", 12), m, a).price();
+  krows = krows + str(k) + " " + str(vc) + " " + str(gc) + " " + str(ac) + " " + str(vp) + " " + str(gp) + "\n";
+}
+lmf.save_text("data/asian_strikes.csv", krows);
+end _dsl_
+savedsl(sim, "data/asian_options-sim.dslb");
+r = system ${dsl_cli(sim)} --dsl data/asian_options-sim.dslb;
+if (r.code != 0) { println(r.stdout); }
+assert(r.code == 0);
+
+draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+plot.png("images/asian_options.png", 1000, 480);
+plot.cmd("set multiplot layout 1,2 title 'Asian options, S = K = 100, vol 25%, 1 year (lmfinance): averaging makes them cheaper' font ',13'");
+plot.cmd("set border 3; set tics nomirror; set grid lc rgb '#dddddd'; set logscale x 2; set xlabel 'number of fixings'; set ylabel 'call value'; set xrange [0.8:160]; set yrange [4.5:13.5]");
+plot.cmd("set key at graph 0.96, 0.14 right bottom opaque font ',9' samplen 2");
+plot.cmd("plot 'data/asian_fixings.csv' u 1:5 w l lw 2 lc rgb '#555555' t 'vanilla (one fixing at expiry)', '' u 1:3:4 w yerrorbars pt 7 ps 1 lw 1.5 lc rgb '#d62728' t 'arithmetic average (Monte Carlo, 40 000 paths)', '' u 1:2 w lp pt 5 ps 1 lw 2 lc rgb '#1f77b4' t 'geometric average (closed form)'");
+plot.cmd("unset logscale; set xlabel 'strike'; set ylabel 'value with 12 monthly fixings'; set xrange [70:130]; set yrange [0:32]; set key at graph 0.5, 0.95 center top opaque font ',9' samplen 2");
+plot.cmd("plot 'data/asian_strikes.csv' u 1:2 w l lw 2 lc rgb '#aaaaaa' t 'vanilla call', '' u 1:4 w p pt 7 ps 0.8 lc rgb '#d62728' t 'arithmetic Asian call', '' u 1:3 w l lw 2 lc rgb '#1f77b4' t 'geometric Asian call', '' u 1:5 w l dt 2 lw 2 lc rgb '#aaaaaa' t 'vanilla put', '' u 1:6 w l dt 2 lw 2 lc rgb '#1f77b4' t 'geometric Asian put'");
+plot.cmd("unset multiplot");
+plot.close();
+end _dsl_
+savedsl(draw, "data/asian_options-draw.dslb");
+r = system ${dsl_cli(draw)} --dsl data/asian_options-draw.dslb;
+if (r.code != 0) { println(r.stderr); }
+assert(r.code == 0);
+println("wrote images/asian_options.png");

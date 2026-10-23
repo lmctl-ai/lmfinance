@@ -1,0 +1,92 @@
+# A P/L waterfall: where did the money go? An option book (long 100 calls K 100, short 150 puts K 90, long 50 calls K 110,
+# all one year) is revalued after a market move (spot 100 -> 106, vol 20% -> 23%, rate 5% -> 5.25%, 10 days). lmfinance
+# gives the analytic Greeks before the move, so the P/L is attributed to delta, gamma, vega, rho and theta; the actual
+# repricing P/L closes the waterfall and the unexplained remainder (cross terms and higher orders) is small (asserted:
+# below 6% of the total). lmplot draws images/portfolio_waterfall.png: the waterfall on the left, the per-position
+# attribution on the right.
+mkdir("images");
+mkdir("data");
+sim = _dsl_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
+let a = pricing.analytic();
+let before = model.black_scholes(100.0, 0.05, 0.0, 0.20);
+let after = model.black_scholes(106.0, 0.0525, 0.0, 0.23);
+let ds = 6.0;
+let dvol = 0.03;
+let dr = 0.0025;
+let dt = 10.0 / 365.0;
+let total_delta = 0.0;
+let total_gamma = 0.0;
+let total_vega = 0.0;
+let total_rho = 0.0;
+let total_theta = 0.0;
+let total_actual = 0.0;
+let per = "";
+for (i in range(0, 3)) {
+  let qty = 100.0;
+  let opt = instrument.european_call(100.0, 1.0);
+  if (i == 1) { qty = -150.0; opt = instrument.european_put(90.0, 1.0); }
+  if (i == 2) { qty = 50.0; opt = instrument.european_call(110.0, 1.0); }
+  let r0 = pricing.price(opt, before, a);
+  let later = instrument.european_call(opt.strike(), 1.0 - dt);
+  if (i == 1) { later = instrument.european_put(90.0, 1.0 - dt); }
+  let r1 = pricing.price(later, after, a);
+  let d = qty * r0.delta() * ds;
+  let g = qty * 0.5 * r0.gamma() * ds * ds;
+  let v = qty * r0.vega() * dvol;
+  let rh = qty * r0.rho() * dr;
+  let th = qty * r0.theta() * dt;
+  let actual = qty * (r1.price() - r0.price());
+  total_delta = total_delta + d;
+  total_gamma = total_gamma + g;
+  total_vega = total_vega + v;
+  total_rho = total_rho + rh;
+  total_theta = total_theta + th;
+  total_actual = total_actual + actual;
+  per = per + str(i) + " " + str(d) + " " + str(g) + " " + str(v) + " " + str(rh) + " " + str(th) + " " + str(actual) + "\n";
+}
+lmf.save_text("data/waterfall_positions.csv", per);
+let explained = total_delta + total_gamma + total_vega + total_rho + total_theta;
+let unexplained = total_actual - explained;
+lmf.print("delta " + str(total_delta) + " gamma " + str(total_gamma) + " vega " + str(total_vega) + " rho " + str(total_rho) + " theta " + str(total_theta) + " | actual " + str(total_actual) + " unexplained " + str(unexplained));
+lmf.check(abs(unexplained) < 0.06 * abs(total_actual), "the Greeks explain the P/L to within 6%");
+lmf.check(total_delta > 0.0, "the book is net long delta");
+lmf.check(total_theta < 0.0, "a net long option book bleeds theta");
+# waterfall: running totals from 0, each step a box from the previous level to the new level
+let w = "";
+let level = 0.0;
+w = w + "0 " + str(level) + " " + str(level + total_delta) + " delta\n";
+level = level + total_delta;
+w = w + "1 " + str(level) + " " + str(level + total_gamma) + " gamma\n";
+level = level + total_gamma;
+w = w + "2 " + str(level) + " " + str(level + total_vega) + " vega\n";
+level = level + total_vega;
+w = w + "3 " + str(level) + " " + str(level + total_rho) + " rho\n";
+level = level + total_rho;
+w = w + "4 " + str(level) + " " + str(level + total_theta) + " theta\n";
+level = level + total_theta;
+w = w + "5 " + str(level) + " " + str(level + unexplained) + " unexplained\n";
+w = w + "6 0 " + str(total_actual) + " actual\n";
+lmf.save_text("data/waterfall.csv", w);
+end _dsl_
+savedsl(sim, "data/portfolio_waterfall-sim.dslb");
+r = system ${dsl_cli(sim)} --dsl data/portfolio_waterfall-sim.dslb;
+if (r.code != 0) { println(r.stdout); }
+assert(r.code == 0);
+
+draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+plot.png("images/portfolio_waterfall.png", 1000, 500);
+plot.cmd("set multiplot layout 1,2 title 'P/L attribution of an option book after spot +6, vol +3 points, rates +25 bp, 10 days (lmfinance Greeks)' font ',12'");
+plot.cmd("set border 3; set tics nomirror; set grid ytics lc rgb '#dddddd'; unset key; set style fill solid 0.9 border lc rgb '#333333'");
+plot.cmd("set xrange [-0.6:6.6]; set xtics ('delta' 0, 'gamma' 1, 'vega' 2, 'rho' 3, 'theta' 4, 'unexpl.' 5, 'actual' 6) font ',9'; set ylabel 'P/L'; set boxwidth 0.7");
+plot.cmd("plot 'data/waterfall.csv' u 1:2:2:3:3:($3 >= $2 ? 0x2ca02c : 0xd62728) w candlesticks lc rgb variable notitle, '' u 1:($3 >= $2 ? $3 : $2):(sprintf('%+.0f', $3 - $2)) w labels offset 0, 0.7 font ',9' notitle");
+plot.cmd("set style data histograms; set style histogram clustered gap 1; set xrange [-0.6:2.6]; set xtics ('100 calls K 100' 0, 'short 150 puts K 90' 1, '50 calls K 110' 2) font ',9'; set key top right box opaque font ',8' samplen 1.5");
+plot.cmd("set style line 1 lc rgb '#1f77b4'; set style line 2 lc rgb '#9467bd'; set style line 3 lc rgb '#2ca02c'; set style line 4 lc rgb '#8c564b'; set style line 5 lc rgb '#d62728'; set style line 6 lc rgb '#333333'");
+plot.cmd("plot 'data/waterfall_positions.csv' u 2 ls 1 t 'delta', '' u 3 ls 2 t 'gamma', '' u 4 ls 3 t 'vega', '' u 5 ls 4 t 'rho', '' u 6 ls 5 t 'theta', '' u 7 ls 6 fs pattern 1 t 'actual'");
+plot.cmd("unset multiplot");
+plot.close();
+end _dsl_
+savedsl(draw, "data/portfolio_waterfall-draw.dslb");
+r = system ${dsl_cli(draw)} --dsl data/portfolio_waterfall-draw.dslb;
+if (r.code != 0) { println(r.stderr); }
+assert(r.code == 0);
+println("wrote images/portfolio_waterfall.png");

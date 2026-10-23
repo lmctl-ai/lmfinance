@@ -1,6 +1,6 @@
 # lmfinance
 
-**QuantLib for lmscript: yield curves, bonds, swaps, options, Greeks, risk and calibration in one static executable.**
+**QuantLib for lmscript: yield curves, bonds, swaps, caps and swaptions, vanilla and exotic options, Greeks, risk and calibration in one static executable.**
 
 [![CI](https://github.com/lmctl-ai/lmfinance/actions/workflows/ci.yml/badge.svg)](https://github.com/lmctl-ai/lmfinance/actions/workflows/ci.yml)
 [![Latest release](https://img.shields.io/github/v/release/lmctl-ai/lmfinance?label=release)](https://github.com/lmctl-ai/lmfinance/releases)
@@ -12,31 +12,53 @@
 | --- | --- |
 | A call melting onto its payoff as expiry nears (needs ffmpeg).<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/option_decay.lms` | Call price and delta against the spot.<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/option_greeks.lms` |
 
-| ![option_strategies](docs/images/option_strategies.png) | ![american_put](docs/images/american_put.png) |
+| ![greeks_surface](docs/images/greeks_surface.png) | ![option_strategies](docs/images/option_strategies.png) |
 | --- | --- |
-| Straddle, bull spread, butterfly: value today against the payoff.<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/option_strategies.lms` | American against European put: the early-exercise premium.<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/american_put.lms` |
+| Delta, gamma, vega and theta as surfaces over spot and time to expiry.<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/greeks_surface.lms` | Straddle, bull spread, butterfly: value today against the payoff.<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/option_strategies.lms` |
 
-| ![gamma_heatmap](docs/images/gamma_heatmap.png) | ![vol_smile](docs/images/vol_smile.png) |
+| ![american_put](docs/images/american_put.png) | ![exercise_boundary](docs/images/exercise_boundary.png) |
 | --- | --- |
-| Gamma: the at-the-money spike that sharpens toward expiry.<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/gamma_heatmap.lms` | Heston implied-volatility smile for three correlations.<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/vol_smile.lms` |
+| American against European put: the early-exercise premium.<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/american_put.lms` | Where to exercise an American put: the critical spot against time, above the perpetual limit.<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/exercise_boundary.lms` |
 
-| ![vol_surface](docs/images/vol_surface.png) | |
+| ![gamma_heatmap](docs/images/gamma_heatmap.png) | ![tree_convergence](docs/images/tree_convergence.png) |
 | --- | --- |
-| Heston implied-volatility surface: skew and term structure.<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/vol_surface.lms` | |
+| Gamma: the at-the-money spike that sharpens toward expiry.<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/gamma_heatmap.lms` | Binomial trees against Black-Scholes: odd/even oscillation, Leisen-Reimer converging like 1/n^2.<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/tree_convergence.lms` |
+
+| ![barrier_options](docs/images/barrier_options.png) | ![asian_options](docs/images/asian_options.png) |
+| --- | --- |
+| Up-and-out calls: in + out = vanilla, and a knock-out call whose vega turns negative (needs lmfinance 0.1.2).<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/barrier_options.lms` | Asian options: averaging makes them cheaper, geometric in closed form, arithmetic by Monte Carlo (needs lmfinance 0.1.2).<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/asian_options.lms` |
+
+### Volatility
+
+| ![vol_smile](docs/images/vol_smile.png) | ![vol_surface](docs/images/vol_surface.png) |
+| --- | --- |
+| Heston implied-volatility smile for three correlations.<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/vol_smile.lms` | Heston implied-volatility surface: skew and term structure.<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/vol_surface.lms` |
+
+| ![heston_calibration](docs/images/heston_calibration.png) | |
+| --- | --- |
+| Heston calibrated to a 4 x 9 vol surface from a wrong guess: fitted smiles on the quotes, residuals below 1e-4.<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/heston_calibration.lms` | |
 
 ### Rates and bonds
 
-| ![yield_curve](docs/images/yield_curve.png) | ![bond_convexity](docs/images/bond_convexity.png) |
+| ![yield_curve](docs/images/yield_curve.png) | ![curve_shapes](docs/images/curve_shapes.png) |
 | --- | --- |
-| A bootstrapped curve: zero and forward rates.<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/yield_curve.lms` | Bond price against yield, with the duration tangent.<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/bond_convexity.lms` |
+| A bootstrapped curve: zero and forward rates.<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/yield_curve.lms` | Normal, flat and inverted curves: where the forwards sit and what the same bond and swap are worth on each.<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/curve_shapes.lms` |
 
-| ![bond_balance](docs/images/bond_balance.png) | ![rate_scenarios](docs/images/rate_scenarios.png) |
+| ![bond_convexity](docs/images/bond_convexity.png) | ![bond_ladder](docs/images/bond_ladder.png) |
 | --- | --- |
-| Duration is the balance point of the discounted cash flows (lmdraw).<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/bond_balance.lms` | Bond and swap P/L under parallel curve shifts.<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/rate_scenarios.lms` |
+| Bond price against yield, with the duration tangent.<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/bond_convexity.lms` | Price, modified duration and convexity across the maturity ladder for three coupons; par and zero-bond answers asserted.<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/bond_ladder.lms` |
 
-| ![dv01_ladder](docs/images/dv01_ladder.png) | |
+| ![bond_balance](docs/images/bond_balance.png) | ![swap_cashflows](docs/images/swap_cashflows.png) |
 | --- | --- |
-| Where the rate risk sits: DV01 of zero bonds and swaps.<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/dv01_ladder.lms` | |
+| Duration is the balance point of the discounted cash flows (lmdraw).<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/bond_balance.lms` | A payer swap flow by flow: fixed coupons down, floating coupons from the forward rates up, each with its PV (lmdraw).<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/swap_cashflows.lms` |
+
+| ![rate_scenarios](docs/images/rate_scenarios.png) | ![dv01_ladder](docs/images/dv01_ladder.png) |
+| --- | --- |
+| Bond and swap P/L under parallel curve shifts.<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/rate_scenarios.lms` | Where the rate risk sits: DV01 of zero bonds and swaps.<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/dv01_ladder.lms` |
+
+| ![caps_floors](docs/images/caps_floors.png) | ![swaption_grid](docs/images/swaption_grid.png) |
+| --- | --- |
+| A 5-year cap and floor against the strike: equal at the ATM rate, cap - floor is a swap (needs lmfinance 0.1.2).<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/caps_floors.lms` | ATM payer swaptions over expiry x tenor, and the 1Y x 5Y swaption against the strike (needs lmfinance 0.1.2).<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/swaption_grid.lms` |
 
 ### Numerics and risk
 
@@ -44,11 +66,15 @@
 | --- | --- |
 | Tree, finite-difference and Monte Carlo errors against the closed form.<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/engine_convergence.lms` | Seeded Monte Carlo inside its error bars.<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/mc_convergence.lms` |
 
-| ![var_tail](docs/images/var_tail.png) | |
+| ![var_tail](docs/images/var_tail.png) | ![mc_var](docs/images/mc_var.png) |
 | --- | --- |
-| 99% VaR and expected shortfall of a position.<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/var_tail.lms` | |
+| 99% VaR and expected shortfall of a position.<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/var_tail.lms` | Monte Carlo VaR by full revaluation: lmnum normals, lmfinance prices, `risk.series` quantiles (needs lmfinance 0.1.2).<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/mc_var.lms` |
 
-Each command runs the example from any empty directory: lmfinance computes, [lmplot](https://github.com/lmctl-ai/lmplot) or [lmdraw](https://github.com/lmctl-ai/lmdraw) draws, and the picture lands in `images/`. `examples/render-all.sh` regenerates `docs/images/` from a checkout.
+| ![portfolio_waterfall](docs/images/portfolio_waterfall.png) | |
+| --- | --- |
+| P/L attribution of an option book: delta, gamma, vega, rho, theta and the unexplained remainder.<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/portfolio_waterfall.lms` | |
+
+Each command runs the example from any empty directory: lmfinance computes, [lmplot](https://github.com/lmctl-ai/lmplot) or [lmdraw](https://github.com/lmctl-ai/lmdraw) draws, and the picture lands in `images/`. `examples/render-all.sh` regenerates `docs/images/` from a checkout. Five examples (`barrier_options`, `asian_options`, `caps_floors`, `swaption_grid`, `mc_var`) use the exotics, cap/floor, swaption and `risk.series` API that is in the source but not yet in a tagged release: they need lmfinance 0.1.2 (`@latest` is 0.1.1 until it is tagged; build from source or run them with the repo's `build/lmfinance` on `PATH`).
 
 **Quick start:** `npm i -g @lmctl-ai/lmctl`, then paste any `lmctl autorun` line above.
 
@@ -82,10 +108,10 @@ with `market.set_date`.
 | namespace | functions |
 | --- | --- |
 | `market` | `set_date` `date` `flat_curve(r)` `zero_curve()` `bootstrap_curve()` → `CurveBuilder` `.zero(years, rate)` `.deposit("3M", rate)` `.swap("5Y", rate)` `.build()` → `Curve` `.discount .zero .forward .bumped .save_csv` |
-| `instrument` | `european_call/put(K, T)` `american_call/put(K, T)` → `Option`; `bond(face, coupon, years, freq)` `zero_bond(face, years)` → `Bond`; `swap(notional, fixed_rate, years)` → `Swap` `.receiver .payer .spread` |
+| `instrument` | `european_call/put(K, T)` `american_call/put(K, T)` `barrier_call/put(K, T, barrier, "up-out"\|"up-in"\|"down-out"\|"down-in")` `asian_call/put(K, T, "geometric"\|"arithmetic", fixings)` → `Option`; `bond(face, coupon, years, freq)` `zero_bond(face, years)` → `Bond`; `swap(notional, fixed_rate, years)` → `Swap` `.receiver .payer .spread`; `cap/floor(notional, strike, years)` → `CapFloor`; `swaption(swap, expiry)` → `Swaption` |
 | `model` | `black_scholes(S, r, q, vol)` `heston(S, r, q, v0, kappa, theta, sigma, rho)` → `Model` `.param .with_spot .with_rate .with_vol` |
-| `pricing` | engines `analytic()` `binomial(n)` `binomial_tree("crr"\|"jr"\|"tian"\|"lr", n)` `finite_diff(tsteps, grid)` `monte_carlo(paths, seed)` `baw()`; `price(option, model, engine)` → `Result` `.price .stderr .delta .gamma .vega .theta .rho`; bonds: `bond_clean_price bond_npv bond_accrued bond_price_from_yield bond_yield bond_duration bond_macaulay_duration bond_convexity`; swaps: `swap_npv swap_par_rate swap_annuity` |
-| `risk` | bumped `delta gamma vega rho theta` for any engine; `bond_dv01` `swap_dv01`; `var_normal` `es_normal`; `save_profile` (price, delta, gamma over a spot range, CSV) |
+| `pricing` | engines `analytic()` `binomial(n)` `binomial_tree("crr"\|"jr"\|"tian"\|"lr", n)` `finite_diff(tsteps, grid)` `monte_carlo(paths, seed)` `baw()`; `price(option, model, engine)` → `Result` `.price .stderr .delta .gamma .vega .theta .rho`; bonds: `bond_clean_price bond_npv bond_accrued bond_price_from_yield bond_yield bond_duration bond_macaulay_duration bond_convexity`; swaps: `swap_npv swap_par_rate swap_annuity`; Black: `capfloor_npv(cf, curve, vol) capfloor_implied_vol capfloor_atm_rate swaption_npv(sw, curve, vol) swaption_implied_vol swaption_forward_rate` |
+| `risk` | bumped `delta gamma vega rho theta` for any engine; `bond_dv01` `swap_dv01`; `var_normal` `es_normal`; `series(path)` → `Series` `.size .get .mean .std .min .max .quantile(p) .var(conf) .es(conf)` (empirical VaR/ES of a P/L or return file); `save_profile` (price, delta, gamma over a spot range, CSV) |
 | `calibration` | `implied_vol(option, model, engine, price)`; `heston(S, r, q)` → `HestonFit` `.quote(K, T, vol)` `.guess(...)` `.fit()` → `Model` `.error()` |
 | `lmf` | `assert_close` `check` `print` `save_text` `version` |
 
@@ -118,6 +144,19 @@ Combine it with other hosts in one script: [examples/gallery/](examples/gallery)
 | [gallery/bond_balance.lms](examples/gallery/bond_balance.lms) | Duration as the balance point of discounted cash flows (lmdraw) | `lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/bond_balance.lms` |
 | [gallery/dv01_ladder.lms](examples/gallery/dv01_ladder.lms) | DV01 of zero bonds and swaps against P T and the annuity | `lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/dv01_ladder.lms` |
 | [gallery/var_tail.lms](examples/gallery/var_tail.lms) | 99% VaR and expected shortfall of a position | `lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/var_tail.lms` |
+| [gallery/curve_shapes.lms](examples/gallery/curve_shapes.lms) | three `zero_curve` shapes: forwards above a rising curve and below an inverted one, flat forward = zero to 1e-12, bond and swap repriced on each | `lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/curve_shapes.lms` |
+| [gallery/bond_ladder.lms](examples/gallery/bond_ladder.lms) | 1..30 years x 2/5/8% coupons at a 5% yield: par bond at 100, zero-bond Macaulay = T and modified = T/1.05, 10-year Macaulay 8.1078 | `lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/bond_ladder.lms` |
+| [gallery/greeks_surface.lms](examples/gallery/greeks_surface.lms) | 41 x 40 grid of analytic Greeks; ATM delta 0.6368, gamma integrates to delta(140) - delta(60), theta fastest ATM near expiry | `lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/greeks_surface.lms` |
+| [gallery/tree_convergence.lms](examples/gallery/tree_convergence.lms) | crr/jr/tian/lr for 5..400 steps; CRR brackets the closed form on odd/even steps, Leisen-Reimer within 1e-5 at 201 steps | `lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/tree_convergence.lms` |
+| [gallery/exercise_boundary.lms](examples/gallery/exercise_boundary.lms) | bisection on CRR 400 for the critical spot S*(T): below K, falling with T, above the perpetual limit 71.43 | `lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/exercise_boundary.lms` |
+| [gallery/heston_calibration.lms](examples/gallery/heston_calibration.lms) | 36 quotes from a known Heston model, fit from a wrong guess: rms error < 1e-4, rho and v0 recovered; non-convergence is an error since 0.1.2 | `lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/heston_calibration.lms` |
+| [gallery/barrier_options.lms](examples/gallery/barrier_options.lms) | (0.1.2) in + out = vanilla to 1e-6 for up and down barriers; the up-and-out call loses half its peak value at high vol | `lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/barrier_options.lms` |
+| [gallery/asian_options.lms](examples/gallery/asian_options.lms) | (0.1.2) one fixing = vanilla; geometric closed form decreasing in fixings; arithmetic MC with control variate, stderr < 0.01 | `lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/asian_options.lms` |
+| [gallery/caps_floors.lms](examples/gallery/caps_floors.lms) | (0.1.2) cap = floor at `capfloor_atm_rate`, cap - floor linear in the strike, `capfloor_implied_vol` returns 30% at every strike | `lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/caps_floors.lms` |
+| [gallery/swaption_grid.lms](examples/gallery/swaption_grid.lms) | (0.1.2) ATM payer = receiver on a 4 x 4 grid, payer - receiver = annuity (fwd - K), implied vol round trip | `lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/swaption_grid.lms` |
+| [gallery/mc_var.lms](examples/gallery/mc_var.lms) | (0.1.2) lmnum draws correlated normals (`cholesky`), lmfinance reprices a book in 4000 scenarios, `risk.series` gives VaR and ES; compared with `var_normal` | `lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/mc_var.lms` |
+| [gallery/portfolio_waterfall.lms](examples/gallery/portfolio_waterfall.lms) | Greek attribution of the P/L after spot +6, vol +3, rates +25bp, 10 days: the unexplained remainder is under 6% of the total | `lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/portfolio_waterfall.lms` |
+| [gallery/swap_cashflows.lms](examples/gallery/swap_cashflows.lms) | lmdraw cash-flow diagram; the two legs rebuilt from `Curve.forward` and `discount` match `swap_npv` to 0.1% of notional | `lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/swap_cashflows.lms` |
 
 `tests/` holds the checks against textbook values (Black-Scholes 10.4506 and 5.5735, Hull's
 example, the American put 6.0903, bond annuity formulas, put-call parity, Heston → Black-Scholes

@@ -162,6 +162,79 @@
             "returns": "Option"
           }
         ],
+        "barrier_call": [
+          {
+            "params": [
+              "float",
+              "float",
+              "float",
+              "string"
+            ],
+            "returns": "Option"
+          }
+        ],
+        "barrier_put": [
+          {
+            "params": [
+              "float",
+              "float",
+              "float",
+              "string"
+            ],
+            "returns": "Option"
+          }
+        ],
+        "asian_call": [
+          {
+            "params": [
+              "float",
+              "float",
+              "string",
+              "int"
+            ],
+            "returns": "Option"
+          }
+        ],
+        "asian_put": [
+          {
+            "params": [
+              "float",
+              "float",
+              "string",
+              "int"
+            ],
+            "returns": "Option"
+          }
+        ],
+        "cap": [
+          {
+            "params": [
+              "float",
+              "float",
+              "float"
+            ],
+            "returns": "CapFloor"
+          }
+        ],
+        "floor": [
+          {
+            "params": [
+              "float",
+              "float",
+              "float"
+            ],
+            "returns": "CapFloor"
+          }
+        ],
+        "swaption": [
+          {
+            "params": [
+              "Swap",
+              "float"
+            ],
+            "returns": "Swaption"
+          }
+        ],
         "bond": [
           {
             "params": [
@@ -190,6 +263,32 @@
               "float"
             ],
             "returns": "Swap"
+          }
+        ]
+      }
+    },
+    "CapFloor": {
+      "methods": {
+        "strike": [
+          {
+            "params": [],
+            "returns": "float"
+          }
+        ],
+        "years": [
+          {
+            "params": [],
+            "returns": "float"
+          }
+        ]
+      }
+    },
+    "Swaption": {
+      "methods": {
+        "expiry": [
+          {
+            "params": [],
+            "returns": "float"
           }
         ]
       }
@@ -472,6 +571,64 @@
             ],
             "returns": "float"
           }
+        ],
+        "capfloor_npv": [
+          {
+            "params": [
+              "CapFloor",
+              "Curve",
+              "float"
+            ],
+            "returns": "float"
+          }
+        ],
+        "capfloor_implied_vol": [
+          {
+            "params": [
+              "CapFloor",
+              "Curve",
+              "float"
+            ],
+            "returns": "float"
+          }
+        ],
+        "capfloor_atm_rate": [
+          {
+            "params": [
+              "CapFloor",
+              "Curve"
+            ],
+            "returns": "float"
+          }
+        ],
+        "swaption_npv": [
+          {
+            "params": [
+              "Swaption",
+              "Curve",
+              "float"
+            ],
+            "returns": "float"
+          }
+        ],
+        "swaption_implied_vol": [
+          {
+            "params": [
+              "Swaption",
+              "Curve",
+              "float"
+            ],
+            "returns": "float"
+          }
+        ],
+        "swaption_forward_rate": [
+          {
+            "params": [
+              "Swaption",
+              "Curve"
+            ],
+            "returns": "float"
+          }
         ]
       }
     },
@@ -632,6 +789,80 @@
               "float",
               "float",
               "float",
+              "float"
+            ],
+            "returns": "float"
+          }
+        ],
+        "series": [
+          {
+            "params": [
+              "string"
+            ],
+            "returns": "Series"
+          }
+        ]
+      }
+    },
+    "Series": {
+      "methods": {
+        "size": [
+          {
+            "params": [],
+            "returns": "int"
+          }
+        ],
+        "get": [
+          {
+            "params": [
+              "int"
+            ],
+            "returns": "float"
+          }
+        ],
+        "mean": [
+          {
+            "params": [],
+            "returns": "float"
+          }
+        ],
+        "std": [
+          {
+            "params": [],
+            "returns": "float"
+          }
+        ],
+        "min": [
+          {
+            "params": [],
+            "returns": "float"
+          }
+        ],
+        "max": [
+          {
+            "params": [],
+            "returns": "float"
+          }
+        ],
+        "quantile": [
+          {
+            "params": [
+              "float"
+            ],
+            "returns": "float"
+          }
+        ],
+        "var": [
+          {
+            "params": [
+              "float"
+            ],
+            "returns": "float"
+          }
+        ],
+        "es": [
+          {
+            "params": [
               "float"
             ],
             "returns": "float"

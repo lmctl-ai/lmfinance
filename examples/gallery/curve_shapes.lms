@@ -1,0 +1,73 @@
+# Three shapes of the yield curve and what they do to prices. Normal (rising), flat and inverted zero curves are built
+# with `zero_curve`; lmfinance reads back zero rates, one-year forward rates and discount factors, then prices the same
+# 10-year 4% bond and 5-year 4% payer swap on each. Forwards sit above an upward-sloping curve and below an inverted one
+# (asserted), on the flat curve forward = zero to 1e-12; the bond is cheapest on the normal curve (highest long rates) while
+# the payer swap is worth most on the inverted curve (its first five years carry the highest forwards). lmplot draws images/curve_shapes.png: zero and forward curves on the left, prices on the right.
+mkdir("images");
+mkdir("data");
+sim = _dsl_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
+market.set_date("2024-01-02");
+let normal = market.zero_curve().zero(0.5, 0.030).zero(2.0, 0.034).zero(5.0, 0.040).zero(10.0, 0.045).zero(30.0, 0.048).build();
+let flat = market.flat_curve(0.040);
+let inverted = market.zero_curve().zero(0.5, 0.052).zero(2.0, 0.048).zero(5.0, 0.042).zero(10.0, 0.038).zero(30.0, 0.036).build();
+let rows = "";
+let above = 0;
+let below = 0;
+for (i in range(0, 59)) {
+  let t = 0.5 + 0.5 * float(i);
+  let fn_ = normal.forward(t, t + 1.0);
+  let ff = flat.forward(t, t + 1.0);
+  let fi = inverted.forward(t, t + 1.0);
+  if (fn_ > normal.zero(t)) { above = above + 1; }
+  if (fi < inverted.zero(t)) { below = below + 1; }
+  lmf.assert_close(ff, flat.zero(t), 0.000000000001);
+  rows = rows + str(t) + " " + str(100.0 * normal.zero(t)) + " " + str(100.0 * fn_) + " " + str(100.0 * flat.zero(t)) + " " + str(100.0 * ff) + " " + str(100.0 * inverted.zero(t)) + " " + str(100.0 * fi) + "\n";
+}
+lmf.check(above == 59, "forwards lie above a rising zero curve");
+lmf.check(below == 59, "forwards lie below an inverted zero curve");
+lmf.save_text("data/curve_shapes.csv", rows);
+let bond = instrument.bond(100.0, 0.04, 10.0, 1);
+let swap = instrument.swap(1000000.0, 0.04, 5.0);
+let prices = "";
+let pn = pricing.bond_clean_price(bond, normal);
+let pf = pricing.bond_clean_price(bond, flat);
+let pi = pricing.bond_clean_price(bond, inverted);
+let sn = pricing.swap_npv(swap, normal);
+let sf = pricing.swap_npv(swap, flat);
+let si = pricing.swap_npv(swap, inverted);
+prices = prices + "1 " + str(pn) + " " + str(sn / 10000.0) + " " + str(100.0 * pricing.swap_par_rate(swap, normal)) + "\n";
+prices = prices + "2 " + str(pf) + " " + str(sf / 10000.0) + " " + str(100.0 * pricing.swap_par_rate(swap, flat)) + "\n";
+prices = prices + "3 " + str(pi) + " " + str(si / 10000.0) + " " + str(100.0 * pricing.swap_par_rate(swap, inverted)) + "\n";
+lmf.save_text("data/curve_prices.csv", prices);
+lmf.print("bond: normal " + str(pn) + ", flat " + str(pf) + ", inverted " + str(pi) + "; payer swap NPV: " + str(sn) + " " + str(sf) + " " + str(si));
+# a 4% coupon bond on a continuously compounded flat 4% curve is just below par (continuous vs annual compounding)
+lmf.assert_close(pf, 99.4, 0.4);
+lmf.check(pn < pf, "higher long rates (normal curve) lower the 10-year bond price");
+lmf.check(pi > pn, "the inverted curve has the lowest long rates and the highest price");
+lmf.check(si > sn, "paying 4% fixed against high near-term forwards (inverted curve) is worth more");
+lmf.check(pricing.swap_par_rate(swap, inverted) > pricing.swap_par_rate(swap, normal), "the 5-year par rate follows the first five years of the curve");
+end _dsl_
+savedsl(sim, "data/curve_shapes-sim.dslb");
+r = system ${dsl_cli(sim)} --dsl data/curve_shapes-sim.dslb;
+if (r.code != 0) { println(r.stdout); }
+assert(r.code == 0);
+
+draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+plot.png("images/curve_shapes.png", 1000, 500);
+plot.cmd("set multiplot layout 1,2 title 'Normal, flat and inverted curves (lmfinance): forwards and the prices they imply' font ',13'");
+plot.cmd("set border 3; set tics nomirror; set grid lc rgb '#dddddd'; set xlabel 'years'; set ylabel 'rate [%]'; set xrange [0:30]; set yrange [2:5.8]");
+plot.cmd("set key at graph 0.5, 0.14 center bottom horizontal maxrows 2 box opaque font ',8' samplen 2");
+plot.cmd("plot 'data/curve_shapes.csv' u 1:2 w l lw 2.5 lc rgb '#1f77b4' t 'normal: zero', '' u 1:3 w l dt 2 lw 2 lc rgb '#1f77b4' t 'normal: 1y forward', '' u 1:4 w l lw 2.5 lc rgb '#7f7f7f' t 'flat: zero = forward', '' u 1:6 w l lw 2.5 lc rgb '#d62728' t 'inverted: zero', '' u 1:7 w l dt 2 lw 2 lc rgb '#d62728' t 'inverted: 1y forward'");
+plot.cmd("set style data histograms; set style histogram clustered gap 1; set style fill solid 0.85 border -1; set boxwidth 0.8");
+plot.cmd("set xrange [-0.6:2.6]; set yrange [90:110]; set xtics ('normal' 0, 'flat' 1, 'inverted' 2); set xlabel ''; set ylabel '10-year 4% bond, clean price'");
+plot.cmd("set y2label '5-year 4% payer swap NPV [% of notional]'; set y2range [-5:5]; set y2tics; set ytics nomirror");
+plot.cmd("unset key; set title 'bond price (blue, left axis) and payer swap NPV (orange, right axis)' font ',10'");
+plot.cmd("plot 'data/curve_prices.csv' u 2 lc rgb '#1f77b4' t 'bond price (left)', '' u 3 axes x1y2 lc rgb '#ff7f0e' t 'swap NPV (right)', '' u ($1-1):(106):(sprintf('par %.2f%%', $4)) w labels font ',9' notitle, '' u ($1-1.2):($2+0.8):(sprintf('%.1f', $2)) w labels font ',9' notitle");
+plot.cmd("unset multiplot");
+plot.close();
+end _dsl_
+savedsl(draw, "data/curve_shapes-draw.dslb");
+r = system ${dsl_cli(draw)} --dsl data/curve_shapes-draw.dslb;
+if (r.code != 0) { println(r.stderr); }
+assert(r.code == 0);
+println("wrote images/curve_shapes.png");

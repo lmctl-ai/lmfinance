@@ -88,6 +88,7 @@ cmp -s "$WORK/before.txt" "$WORK/after.txt" || fail "result files differ on reru
 ok "all $(wc -l <"$WORK/after.txt" | tr -d ' ') result files are byte-identical on rerun"
 
 # Error paths: each snippet must fail the run with exit 3 and a message naming the problem.
+printf '1 2 3\n' >"$WORK/pnl.csv"
 expect_error() { # name, snippet, expected message fragment
   cat >"$WORK/$1.lms" <<LMS
 p = _dsl_ cli="lmfinance";
@@ -121,7 +122,15 @@ expect_error nanrate 'let m = model.black_scholes(100.0, sqrt(-1.0), 0.0, 0.2);'
 expect_error nancurve 'let c = market.flat_curve(sqrt(-1.0));' "must be finite"
 expect_error subday 'let r = pricing.price(instrument.european_call(50.0, 0.001), model.black_scholes(100.0, 0.05, 0.0, 0.2), pricing.analytic());' "shorter than one day"
 expect_error badguess 'let f = calibration.heston(100.0, 0.03, 0.0).guess(0.04, 1.0, 0.04, 0.5, 3.0);' "rho must be inside"
-ok "errors stop the program with exit 3 and a clear message (20 cases)"
+expect_error badbarrier 'let o = instrument.barrier_call(100.0, 1.0, 90.0, "sideways");' "barrier type must be"
+expect_error barrierengine 'let r = pricing.price(instrument.barrier_put(100.0, 1.0, 90.0, "down-in"), model.black_scholes(100.0, 0.05, 0.0, 0.2), pricing.binomial(100));' "analytic engine only"
+expect_error asianengine 'let r = pricing.price(instrument.asian_call(100.0, 1.0, "arithmetic", 12), model.black_scholes(100.0, 0.05, 0.0, 0.2), pricing.analytic());' "monte_carlo engine"
+expect_error asianfix 'let r = pricing.price(instrument.asian_call(100.0, 0.01, "geometric", 12), model.black_scholes(100.0, 0.05, 0.0, 0.2), pricing.analytic());' "same day"
+expect_error capmonths 'let v = pricing.capfloor_npv(instrument.cap(1000000.0, 0.04, 2.3), market.flat_curve(0.04), 0.2);' "half years"
+expect_error swaptionexp 'let v = pricing.swaption_npv(instrument.swaption(instrument.swap(1000000.0, 0.04, 5.0), 0.3), market.flat_curve(0.04), 0.2);' "whole number of months"
+expect_error noseries 'let s = risk.series("does-not-exist.csv");' "cannot open"
+expect_error seriesidx 'let s = risk.series("'"$WORK"'/pnl.csv"); let x = s.get(5);' "outside"
+ok "errors stop the program with exit 3 and a clear message (28 cases)"
 
 # --dry-run loads and verifies bytecode but runs nothing (no output files).
 cat >"$WORK/dry.lms" <<LMS

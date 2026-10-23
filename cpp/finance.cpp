@@ -4,11 +4,23 @@
 #include <ql/cashflows/cashflows.hpp>
 #include <ql/exercise.hpp>
 #include <ql/indexes/ibor/euribor.hpp>
+#include <ql/indexes/swap/euriborswap.hpp>
+#include <ql/instruments/asianoption.hpp>
+#include <ql/instruments/barrieroption.hpp>
 #include <ql/instruments/bonds/fixedratebond.hpp>
 #include <ql/instruments/bonds/zerocouponbond.hpp>
+#include <ql/instruments/capfloor.hpp>
+#include <ql/instruments/makecapfloor.hpp>
+#include <ql/instruments/makeswaption.hpp>
 #include <ql/instruments/makevanillaswap.hpp>
+#include <ql/instruments/swaption.hpp>
 #include <ql/instruments/vanillaoption.hpp>
 #include <ql/instruments/vanillaswap.hpp>
+#include <ql/pricingengines/asian/analytic_discr_geom_av_price.hpp>
+#include <ql/pricingengines/asian/mc_discr_arith_av_price.hpp>
+#include <ql/pricingengines/barrier/analyticbarrierengine.hpp>
+#include <ql/pricingengines/capfloor/blackcapfloorengine.hpp>
+#include <ql/pricingengines/swaption/blackswaptionengine.hpp>
 #include <ql/math/distributions/normaldistribution.hpp>
 #include <ql/math/optimization/levenbergmarquardt.hpp>
 #include <ql/math/solvers1d/brent.hpp>
@@ -42,7 +54,9 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <fstream>
+#include <sstream>
 
 namespace lmfinance {
 using namespace QuantLib;
@@ -210,7 +224,47 @@ Result price_option(const Clock &c, const Option &o, const Model &m, const Engin
   ext::shared_ptr<Exercise> ex;
   if (o.american) ex = ext::make_shared<AmericanExercise>(c.today, expiry);
   else ex = ext::make_shared<EuropeanExercise>(expiry);
-  VanillaOption opt(ext::make_shared<PlainVanillaPayoff>(o.call ? QuantLib::Option::Call : QuantLib::Option::Put, o.strike), ex);
+  auto payoff = ext::make_shared<PlainVanillaPayoff>(o.call ? QuantLib::Option::Call : QuantLib::Option::Put, o.strike);
+
+  if (o.exotic == Exotic::Barrier) {
+    QL_REQUIRE(!m.heston && !o.american, "barrier options are priced by the Black-Scholes analytic engine (European only)");
+    QL_REQUIRE(e.kind == EngineKind::Analytic, "barrier options are priced with the analytic engine only");
+    Barrier::Type bt = o.barrier_type == "up-in" ? Barrier::UpIn : o.barrier_type == "up-out" ? Barrier::UpOut
+                       : o.barrier_type == "down-in" ? Barrier::DownIn : Barrier::DownOut;
+    BarrierOption opt(bt, o.barrier, o.rebate, payoff, ex);
+    opt.setPricingEngine(ext::make_shared<AnalyticBarrierEngine>(bs_process(c, m)));
+    Result r;
+    r.price = opt.NPV();
+    return r;
+  }
+  if (o.exotic == Exotic::Asian) {
+    QL_REQUIRE(!m.heston && !o.american, "Asian options are priced on a Black-Scholes model (European exercise)");
+    std::vector<Date> fixings;
+    for (int k = 1; k <= o.fixings; k++) fixings.push_back(c.today + static_cast<Integer>(std::llround(o.years * 365.0 * k / o.fixings)));
+    for (std::size_t k = 0; k < fixings.size(); k++)
+      QL_REQUIRE(fixings[k] > (k ? fixings[k - 1] : c.today), "Asian fixings fall on the same day: use fewer fixings or a longer maturity");
+    Average::Type avg = o.averaging == "geometric" ? Average::Geometric : Average::Arithmetic;
+    DiscreteAveragingAsianOption opt(avg, fixings, payoff, ex);
+    auto p = bs_process(c, m);
+    Result r;
+    if (avg == Average::Geometric) {
+      QL_REQUIRE(e.kind == EngineKind::Analytic, "geometric Asian options are priced with the analytic engine");
+      opt.setPricingEngine(ext::make_shared<AnalyticDiscreteGeometricAveragePriceAsianEngine>(p));
+      r.price = opt.NPV();
+    } else {
+      QL_REQUIRE(e.kind == EngineKind::MonteCarlo, "arithmetic Asian options are priced with the monte_carlo engine (geometric control variate)");
+      membudget::require(static_cast<std::size_t>(e.paths) / 2 * 3 * sizeof(std::pair<Real, Real>));
+      opt.setPricingEngine(MakeMCDiscreteArithmeticAPEngine<PseudoRandom>(p)
+                               .withSamples(static_cast<Size>(e.paths))
+                               .withSeed(static_cast<BigNatural>(e.seed))
+                               .withAntitheticVariate()
+                               .withControlVariate());
+      r.price = opt.NPV();
+      r.stderr_ = opt.errorEstimate();
+    }
+    return r;
+  }
+  VanillaOption opt(payoff, ex);
 
   bool mc = false;
   if (m.heston) {
@@ -395,6 +449,131 @@ double swap_annuity(const Clock &c, const lmfinance::Swap &s, const Curve &cv) {
   return std::fabs(make_swap(c, s, cv)->fixedLegBPS()) / 1e-4;
 }
 
+// ---------------------------------------------------------------- caps, floors, swaptions (Black)
+namespace {
+ext::shared_ptr<QuantLib::CapFloor> make_capfloor(const Clock &c, const lmfinance::CapFloor &cf, const Curve &cv) {
+  QL_REQUIRE(cf.notional > 0, "cap/floor notional must be positive");
+  QL_REQUIRE(cf.strike > 0, "cap/floor strike must be positive");
+  int months = static_cast<int>(std::lround(cf.years * 12));
+  QL_REQUIRE(months >= 12 && months % 6 == 0 && cf.years <= 100, "cap/floor maturity must be a whole number of half years, 1 to 100 years");
+  Handle<YieldTermStructure> h(cv.ts);
+  auto index = ext::make_shared<Euribor6M>(h);
+  return MakeCapFloor(cf.cap ? QuantLib::CapFloor::Cap : QuantLib::CapFloor::Floor, Period(months, Months), index)
+      .withStrike(cf.strike)
+      .withNominal(cf.notional)
+      .operator ext::shared_ptr<QuantLib::CapFloor>();
+}
+ext::shared_ptr<QuantLib::Swaption> make_swaption(const Clock &c, const lmfinance::Swaption &sw, const Curve &cv) {
+  QL_REQUIRE(sw.swap.notional > 0, "swap notional must be positive");
+  int months = static_cast<int>(std::lround(sw.swap.years * 12));
+  QL_REQUIRE(months >= 12 && months % 12 == 0 && sw.swap.years <= 100, "swap maturity must be a whole number of years, 1 to 100");
+  int emonths = static_cast<int>(std::lround(sw.expiry * 12));
+  QL_REQUIRE(emonths >= 1 && std::fabs(sw.expiry * 12 - emonths) < 1e-9 && sw.expiry <= 50, "swaption expiry must be a whole number of months, up to 50 years");
+  Handle<YieldTermStructure> h(cv.ts);
+  auto index = ext::make_shared<EuriborSwapIsdaFixA>(Period(months, Months), h);
+  (void)c;
+  return MakeSwaption(index, Period(emonths, Months), sw.swap.rate)
+      .withNominal(sw.swap.notional)
+      .withUnderlyingType(sw.swap.receiver ? QuantLib::Swap::Receiver : QuantLib::Swap::Payer)
+      .operator ext::shared_ptr<QuantLib::Swaption>();
+}
+}  // namespace
+
+double capfloor_npv(const Clock &c, const lmfinance::CapFloor &cf, const Curve &cv, double vol) {
+  activate(c);
+  QL_REQUIRE(vol > 0, "cap/floor volatility must be positive");
+  auto q = make_capfloor(c, cf, cv);
+  q->setPricingEngine(ext::make_shared<BlackCapFloorEngine>(Handle<YieldTermStructure>(cv.ts), vol));
+  return q->NPV();
+}
+double capfloor_implied_vol(const Clock &c, const lmfinance::CapFloor &cf, const Curve &cv, double price) {
+  activate(c);
+  QL_REQUIRE(price > 0, "cap/floor price must be positive");
+  auto q = make_capfloor(c, cf, cv);
+  return q->impliedVolatility(price, Handle<YieldTermStructure>(cv.ts), 0.2, 1e-8, 200, 1e-5, 4.0);
+}
+double capfloor_atm_rate(const Clock &c, const lmfinance::CapFloor &cf, const Curve &cv) {
+  activate(c);
+  return make_capfloor(c, cf, cv)->atmRate(*cv.ts);
+}
+double swaption_npv(const Clock &c, const lmfinance::Swaption &sw, const Curve &cv, double vol) {
+  activate(c);
+  QL_REQUIRE(vol > 0, "swaption volatility must be positive");
+  auto q = make_swaption(c, sw, cv);
+  q->setPricingEngine(ext::make_shared<BlackSwaptionEngine>(Handle<YieldTermStructure>(cv.ts), vol));
+  return q->NPV();
+}
+double swaption_implied_vol(const Clock &c, const lmfinance::Swaption &sw, const Curve &cv, double price) {
+  activate(c);
+  QL_REQUIRE(price > 0, "swaption price must be positive");
+  auto q = make_swaption(c, sw, cv);
+  return q->impliedVolatility(price, Handle<YieldTermStructure>(cv.ts), 0.2, 1e-8, 200, 1e-5, 4.0);
+}
+double swaption_forward_rate(const Clock &c, const lmfinance::Swaption &sw, const Curve &cv) {
+  activate(c);
+  auto q = make_swaption(c, sw, cv);
+  q->setPricingEngine(ext::make_shared<BlackSwaptionEngine>(Handle<YieldTermStructure>(cv.ts), 0.2));
+  return q->underlying()->fairRate();
+}
+
+// ---------------------------------------------------------------- sample series
+Series load_series(const std::string &path) {
+  std::ifstream f(path);
+  QL_REQUIRE(f, "cannot open " << path);
+  Series s;
+  std::string line;
+  bool first = true;
+  while (std::getline(f, line)) {
+    std::vector<double> row;
+    bool bad = false;
+    std::string tok;
+    auto flush = [&] {
+      if (tok.empty()) return;
+      char *end = nullptr;
+      double v = std::strtod(tok.c_str(), &end);
+      if (!end || *end != '\0' || !std::isfinite(v)) bad = true;
+      row.push_back(v);
+      tok.clear();
+    };
+    for (char ch : line) {
+      if (ch == ',' || ch == ' ' || ch == '\t' || ch == '\r' || ch == ';') flush();
+      else tok += ch;
+    }
+    flush();
+    if (bad) {
+      QL_REQUIRE(first, "series " << path << ": line '" << line << "' is not numbers");  // one header line is allowed
+    } else {
+      s.v.insert(s.v.end(), row.begin(), row.end());
+    }
+    first = false;
+    QL_REQUIRE(s.v.size() <= 100000000, "series " << path << ": at most 1e8 values");
+  }
+  QL_REQUIRE(!s.v.empty(), "series " << path << " holds no numbers");
+  membudget::charge(s.v.size() * sizeof(double));
+  return s;
+}
+double series_quantile(const Series &s, double p) {
+  QL_REQUIRE(p >= 0 && p <= 1, "quantile probability must be inside [0, 1]");
+  std::vector<double> v = s.v;
+  std::sort(v.begin(), v.end());
+  double pos = p * (v.size() - 1);
+  std::size_t lo = static_cast<std::size_t>(std::floor(pos));
+  std::size_t hi = std::min(lo + 1, v.size() - 1);
+  return v[lo] + (pos - lo) * (v[hi] - v[lo]);
+}
+double series_var(const Series &s, double confidence) {
+  QL_REQUIRE(confidence > 0.5 && confidence < 1, "confidence must be inside (0.5, 1)");
+  return -series_quantile(s, 1 - confidence);
+}
+double series_es(const Series &s, double confidence) {
+  QL_REQUIRE(confidence > 0.5 && confidence < 1, "confidence must be inside (0.5, 1)");
+  double q = series_quantile(s, 1 - confidence);
+  double sum = 0;
+  std::size_t n = 0;
+  for (double x : s.v) if (x <= q) { sum += x; n++; }
+  return n ? -sum / n : -q;
+}
+
 // ---------------------------------------------------------------- calibration
 double implied_vol(const Clock &c, const Option &o, const Model &m, const Engine &e, double target) {
   need_bs(m, "implied volatility");
@@ -427,6 +606,14 @@ void heston_fit(const Clock &c, HestonFit &h) {
   }
   LevenbergMarquardt om(1e-10, 1e-10, 1e-10);
   model->calibrate(helpers, om, EndCriteria(800, 100, 1e-10, 1e-10, 1e-10));
+  // Levenberg-Marquardt reports why it stopped; only a stationary point/value is a fit. Hitting the iteration cap or
+  // stopping for no reason used to return the last iterate as if it had converged.
+  const EndCriteria::Type why = model->endCriteria();
+  if (!EndCriteria::succeeded(why) && why != EndCriteria::ZeroGradientNorm && why != EndCriteria::FunctionEpsilonTooSmall) {
+    std::ostringstream m;
+    m << "Heston calibration did not converge (" << why << "): try another guess() or more quotes";
+    QL_FAIL(m.str());
+  }
   h.v0 = model->v0();
   h.kappa = model->kappa();
   h.theta = model->theta();

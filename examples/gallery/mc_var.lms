@@ -1,0 +1,82 @@
+# Monte Carlo value at risk by full revaluation (needs lmfinance 0.1.2 and lmnum). Three hosts in one script: lmnum
+# draws 4000 seeded standard normals and correlates them (Cholesky of a 2 x 2 matrix, rho = -0.3) into 10-day shocks
+# to the spot (20% vol) and to the rate (80 bp a year); lmfinance reprices an option book (long 100 calls K 100,
+# short 150 puts K 90, long 50 calls K 110, one year) in every scenario, writes the P/L, and `risk.series` reads it
+# back for the 99% VaR and expected shortfall. Compared with the delta-normal VaR of the same book (`var_normal` on
+# the delta-equivalent exposure): the book is net long gamma (the long calls outweigh the short puts), so large moves
+# hurt less than the linear estimate says and the full-revaluation VaR is smaller (asserted, with ES > VaR). lmplot draws images/mc_var.png: the P/L histogram with VaR and ES marked.
+mkdir("images");
+mkdir("data");
+rng = _dsl_ cli="lmnum" install="github:lmctl-ai/lmnum@latest";
+let z = num.normal(4000, 2, 2024);
+let corr = num.parse("1 -0.3; -0.3 1").cholesky();
+let shocks = z.mul(corr.transpose());              # rows of correlated standard normals
+shocks.col(0).save_csv("data/mc_var_z1.csv");
+shocks.col(1).save_csv("data/mc_var_z2.csv");
+num.assert_close(shocks.col(0).std(), 1.0, 0.05);
+end _dsl_
+savedsl(rng, "data/mc_var-rng.dslb");
+r = system ${dsl_cli(rng)} --dsl data/mc_var-rng.dslb;
+if (r.code != 0) { println(r.stdout); }
+assert(r.code == 0);
+
+sim = _dsl_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
+let a = pricing.analytic();
+let z1 = risk.series("data/mc_var_z1.csv");
+let z2 = risk.series("data/mc_var_z2.csv");
+let s0 = 100.0;
+let r0 = 0.05;
+let vol = 0.2;
+let horizon = sqrt(10.0 / 252.0);
+let base = model.black_scholes(s0, r0, 0.0, vol);
+let c100 = instrument.european_call(100.0, 1.0);
+let p90 = instrument.european_put(90.0, 1.0);
+let c110 = instrument.european_call(110.0, 1.0);
+fn book(m: Model, e: Engine, c1: Option, p: Option, c2: Option) -> float {
+  return 100.0 * pricing.price(c1, m, e).price() - 150.0 * pricing.price(p, m, e).price() + 50.0 * pricing.price(c2, m, e).price();
+}
+let v0 = book(base, a, c100, p90, c110);
+let pnl = "";
+for (i in range(0, z1.size())) {
+  let s = s0 * pow(2.718281828459045, vol * horizon * z1.get(i) - 0.5 * vol * vol * horizon * horizon);
+  let rr = r0 + 0.008 * horizon * z2.get(i);
+  let v = book(model.black_scholes(s, rr, 0.0, vol), a, c100, p90, c110);
+  pnl = pnl + str(v - v0) + "\n";
+}
+lmf.save_text("data/mc_var_pnl.csv", pnl);
+let series = risk.series("data/mc_var_pnl.csv");
+let var99 = series.var(0.99);
+let es99 = series.es(0.99);
+# delta-normal: the book behaves like delta_total shares over the horizon
+let delta_total = 100.0 * pricing.price(c100, base, a).delta() - 150.0 * pricing.price(p90, base, a).delta() + 50.0 * pricing.price(c110, base, a).delta();
+let dn99 = risk.var_normal(delta_total * s0, vol, 0.99, 10.0);
+lmf.print("book value " + str(v0) + ", delta-equivalent " + str(delta_total) + " shares; 99% 10-day VaR: full revaluation " + str(var99) + ", delta-normal " + str(dn99) + "; ES " + str(es99));
+lmf.check(es99 > var99, "expected shortfall exceeds VaR");
+lmf.check(var99 < dn99, "net long gamma: the full-revaluation VaR is below the delta-normal one");
+lmf.check(var99 > 0.5 * dn99, "but not by more than a factor of two");
+lmf.check(series.mean() > -0.2 * var99 && series.mean() < 0.2 * var99, "the P/L distribution is centred");
+lmf.save_text("data/mc_var_marks.csv", str(-var99) + " " + str(-es99) + " " + str(-dn99) + "\n");
+end _dsl_
+savedsl(sim, "data/mc_var-sim.dslb");
+r = system ${dsl_cli(sim)} --dsl data/mc_var-sim.dslb;
+if (r.code != 0) { println(r.stdout); }
+assert(r.code == 0);
+
+draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+plot.png("images/mc_var.png", 900, 560);
+plot.cmd("stats 'data/mc_var_marks.csv' u 1:2 nooutput; v = STATS_min_x; e = STATS_min_y");
+plot.cmd("stats 'data/mc_var_marks.csv' u 3 nooutput; dn = STATS_min");
+plot.cmd("set border 3; set tics nomirror; set grid lc rgb '#dddddd'; set key top left box opaque font ',9'");
+plot.cmd("set title '10-day P/L of an option book, 4000 full-revaluation scenarios (lmnum normals, lmfinance prices, risk.series)' font ',11'");
+plot.cmd("set xlabel 'profit and loss'; set ylabel 'scenarios'; set style fill solid 0.6 border lc rgb '#08519c'");
+plot.cmd("bin(x, w) = w * floor(x / w + 0.5); set boxwidth 60");
+plot.cmd("set arrow 1 from v, graph 0 to v, graph 0.6 nohead lw 3 lc rgb '#d62728'; set arrow 2 from e, graph 0 to e, graph 0.45 nohead lw 3 lc rgb '#ff7f0e'; set arrow 3 from dn, graph 0 to dn, graph 0.3 nohead lw 2 dt 2 lc rgb '#555555'");
+plot.cmd("set label 1 sprintf('VaR 99%% = %.0f', -v) at v, graph 0.63 center tc rgb '#d62728' font ',10'; set label 2 sprintf('ES 99%% = %.0f', -e) at e, graph 0.48 center tc rgb '#ff7f0e' font ',10'; set label 3 sprintf('delta-normal VaR = %.0f', -dn) at dn, graph 0.33 center tc rgb '#555555' font ',9'");
+plot.cmd("plot 'data/mc_var_pnl.csv' u (bin($1, 60)):(1.0) smooth frequency w boxes lc rgb '#6baed6' t 'P/L histogram'");
+plot.close();
+end _dsl_
+savedsl(draw, "data/mc_var-draw.dslb");
+r = system ${dsl_cli(draw)} --dsl data/mc_var-draw.dslb;
+if (r.code != 0) { println(r.stderr); }
+assert(r.code == 0);
+println("wrote images/mc_var.png");

@@ -1,0 +1,62 @@
+# Interest-rate caps and floors (needs lmfinance 0.1.2). A 5-year cap on 6-month Euribor pays when the rate fixes
+# above the strike; a floor pays when it fixes below. On the bootstrapped curve lmfinance prices both with Black's
+# model (flat 30% volatility) for strikes 1..8%. Asserted: cap and floor are worth the same at the ATM rate
+# (`capfloor_atm_rate`), cap - floor is linear in the strike (the parity with a swap: slope = minus the annuity),
+# the implied volatility round-trips to 30% for every strike, and a 15% cap is worth under 2% of the ATM one. lmplot draws
+# images/caps_floors.png: cap and floor values against the strike, and the implied-vol check.
+mkdir("images");
+mkdir("data");
+sim = _dsl_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
+market.set_date("2024-01-02");
+let curve = market.bootstrap_curve().deposit("6M", 0.035).swap("2Y", 0.037).swap("5Y", 0.040).swap("10Y", 0.042).build();
+let notional = 1000000.0;
+let atm = pricing.capfloor_atm_rate(instrument.cap(notional, 0.04, 5.0), curve);
+lmf.print("ATM rate of the 5-year cap: " + str(atm));
+let rows = "";
+let slope0 = 0.0;
+let worst = 0.0;
+for (i in range(0, 29)) {
+  let k = 0.01 + 0.0025 * float(i);
+  let cap = pricing.capfloor_npv(instrument.cap(notional, k, 5.0), curve, 0.3);
+  let floor = pricing.capfloor_npv(instrument.floor(notional, k, 5.0), curve, 0.3);
+  let iv = pricing.capfloor_implied_vol(instrument.cap(notional, k, 5.0), curve, cap);
+  if (i > 0) {
+    let slope = (cap - floor) - slope0;
+    if (i == 1) { worst = slope; }
+    lmf.assert_close(slope, worst, 0.01 * abs(worst) + 1.0);     # the same slope every step: linear in the strike
+  }
+  slope0 = cap - floor;
+  lmf.assert_close(iv, 0.3, 0.000001);
+  rows = rows + str(100.0 * k) + " " + str(cap / notional * 100.0) + " " + str(floor / notional * 100.0) + " " + str((cap - floor) / notional * 100.0) + " " + str(100.0 * iv) + "\n";
+}
+lmf.save_text("data/caps_floors.csv", rows);
+let cap_atm = pricing.capfloor_npv(instrument.cap(notional, atm, 5.0), curve, 0.3);
+let floor_atm = pricing.capfloor_npv(instrument.floor(notional, atm, 5.0), curve, 0.3);
+lmf.assert_close(cap_atm, floor_atm, 0.000001 * cap_atm);
+lmf.check(pricing.capfloor_npv(instrument.cap(notional, 0.15, 5.0), curve, 0.3) < 0.02 * cap_atm, "a 15% cap is worth under 2% of the ATM cap");
+lmf.save_text("data/caps_atm.csv", str(100.0 * atm) + " " + str(cap_atm / notional * 100.0) + "\n");
+lmf.print("ATM cap = floor = " + str(cap_atm) + " on 1 million notional");
+end _dsl_
+savedsl(sim, "data/caps_floors-sim.dslb");
+r = system ${dsl_cli(sim)} --dsl data/caps_floors-sim.dslb;
+if (r.code != 0) { println(r.stdout); }
+assert(r.code == 0);
+
+draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+plot.png("images/caps_floors.png", 1000, 480);
+plot.cmd("stats 'data/caps_atm.csv' u 1:2 nooutput; ak = STATS_min_x; av = STATS_min_y");
+plot.cmd("set multiplot layout 1,2 title '5-year cap and floor on 6M Euribor, Black with 30% vol (lmfinance): value against strike' font ',13'");
+plot.cmd("set border 3; set tics nomirror; set grid lc rgb '#dddddd'; set xlabel 'strike [%]'; set ylabel 'value [% of notional]'; set xrange [1:8]; set yrange [-14:16]");
+plot.cmd("set key at graph 0.04, 0.22 left bottom box opaque font ',9' samplen 2");
+plot.cmd("set arrow 1 from ak, -14 to ak, av nohead dt 2 lc rgb '#555555'; set label 1 sprintf('ATM %.2f%%: cap = floor', ak) at ak + 0.1, -12 font ',9'");
+plot.cmd("plot 'data/caps_floors.csv' u 1:2 w l lw 2.5 lc rgb '#d62728' t 'cap', '' u 1:3 w l lw 2.5 lc rgb '#1f77b4' t 'floor', '' u 1:4 w l dt 2 lw 2 lc rgb '#555555' t 'cap - floor (linear: a swap)', 0 w l lc rgb '#aaaaaa' notitle");
+plot.cmd("unset arrow 1; unset label 1; set ylabel 'implied volatility from the cap price [%]'; set yrange [29:31]; unset key; set title 'implied vol from each cap price vs the 30% input' font ',10'");
+plot.cmd("plot 30 w l dt 2 lw 1.5 lc rgb '#555555' notitle, 'data/caps_floors.csv' u 1:5 w p pt 7 ps 1 lc rgb '#2ca02c' notitle");
+plot.cmd("unset multiplot");
+plot.close();
+end _dsl_
+savedsl(draw, "data/caps_floors-draw.dslb");
+r = system ${dsl_cli(draw)} --dsl data/caps_floors-draw.dslb;
+if (r.code != 0) { println(r.stderr); }
+assert(r.code == 0);
+println("wrote images/caps_floors.png");

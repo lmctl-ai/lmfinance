@@ -1,0 +1,77 @@
+# Swaptions (needs lmfinance 0.1.2). A payer swaption is the right to enter a swap paying fixed in `expiry` years.
+# lmfinance prices the expiry x tenor grid of at-the-money payer swaptions with Black's model (20% vol) on the
+# bootstrapped curve, in basis points of notional: value grows with both the option expiry (more time for rates to
+# move) and the swap tenor (more cash flows at stake). Asserted: ATM payer = receiver, payer - receiver = annuity x
+# (forward - strike) for two strikes, implied vol round trip, and the 1Y x 5Y value against the strike shows the usual
+# hockey stick. lmplot draws images/swaption_grid.png: the grid as a heat map with values, and the strike profile.
+mkdir("images");
+mkdir("data");
+sim = _dsl_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
+market.set_date("2024-01-02");
+let curve = market.bootstrap_curve().deposit("6M", 0.035).swap("1Y", 0.036).swap("2Y", 0.037).swap("3Y", 0.038).swap("5Y", 0.040).swap("7Y", 0.041).swap("10Y", 0.042).swap("15Y", 0.043).swap("20Y", 0.043).build();
+let notional = 1000000.0;
+let vol = 0.2;
+let grid = "";
+for (e in range(0, 4)) {
+  let expiry = 1.0;
+  if (e == 1) { expiry = 2.0; }
+  if (e == 2) { expiry = 5.0; }
+  if (e == 3) { expiry = 10.0; }
+  for (t in range(0, 4)) {
+    let tenor = 1.0;
+    if (t == 1) { tenor = 2.0; }
+    if (t == 2) { tenor = 5.0; }
+    if (t == 3) { tenor = 10.0; }
+    let fwd = pricing.swaption_forward_rate(instrument.swaption(instrument.swap(notional, 0.04, tenor), expiry), curve);
+    let payer = pricing.swaption_npv(instrument.swaption(instrument.swap(notional, fwd, tenor), expiry), curve, vol);
+    let receiver = pricing.swaption_npv(instrument.swaption(instrument.swap(notional, fwd, tenor).receiver(), expiry), curve, vol);
+    lmf.assert_close(payer, receiver, 0.000001 * payer + 0.01);
+    grid = grid + str(e) + " " + str(t) + " " + str(payer / notional * 10000.0) + " " + str(100.0 * fwd) + "\n";
+  }
+  grid = grid + "\n";
+}
+lmf.save_text("data/swaption_grid.txt", grid);
+# 1Y x 5Y against the strike
+let sw1 = instrument.swaption(instrument.swap(notional, 0.04, 5.0), 1.0);
+let fwd = pricing.swaption_forward_rate(sw1, curve);
+let d1 = pricing.swaption_npv(instrument.swaption(instrument.swap(notional, 0.03, 5.0), 1.0), curve, vol) - pricing.swaption_npv(instrument.swaption(instrument.swap(notional, 0.03, 5.0).receiver(), 1.0), curve, vol);
+let d2 = pricing.swaption_npv(instrument.swaption(instrument.swap(notional, 0.05, 5.0), 1.0), curve, vol) - pricing.swaption_npv(instrument.swaption(instrument.swap(notional, 0.05, 5.0).receiver(), 1.0), curve, vol);
+let annuity = (d1 - d2) / 0.02;
+lmf.assert_close(d1, annuity * (fwd - 0.03), 0.01);
+let rows = "";
+for (i in range(0, 31)) {
+  let k = 0.02 + 0.001 * float(i);
+  let payer = pricing.swaption_npv(instrument.swaption(instrument.swap(notional, k, 5.0), 1.0), curve, vol);
+  let receiver = pricing.swaption_npv(instrument.swaption(instrument.swap(notional, k, 5.0).receiver(), 1.0), curve, vol);
+  lmf.assert_close(pricing.swaption_implied_vol(instrument.swaption(instrument.swap(notional, k, 5.0), 1.0), curve, payer), vol, 0.000001);
+  rows = rows + str(100.0 * k) + " " + str(payer / notional * 10000.0) + " " + str(receiver / notional * 10000.0) + " " + str(max(annuity * (fwd - k), 0.0) / notional * 10000.0) + "\n";
+}
+lmf.save_text("data/swaption_strike.csv", rows);
+lmf.save_text("data/swaption_fwd.csv", str(100.0 * fwd) + " 0\n");
+lmf.print("1Y x 5Y forward swap rate " + str(fwd) + ", annuity " + str(annuity));
+end _dsl_
+savedsl(sim, "data/swaption_grid-sim.dslb");
+r = system ${dsl_cli(sim)} --dsl data/swaption_grid-sim.dslb;
+if (r.code != 0) { println(r.stdout); }
+assert(r.code == 0);
+
+draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+plot.png("images/swaption_grid.png", 1000, 480);
+plot.cmd("stats 'data/swaption_fwd.csv' u 1:2 nooutput; fk = STATS_min_x");
+plot.cmd("set multiplot layout 1,2 title 'Payer swaptions with Black 20% vol on a bootstrapped curve (lmfinance), 1 million notional' font ',13'");
+plot.cmd("set view map; set size square; unset key; set xlabel 'swap tenor [years]'; set ylabel 'option expiry [years]'; set xrange [-0.5:3.5]; set yrange [-0.5:3.5]");
+plot.cmd("set xtics ('1' 0, '2' 1, '5' 2, '10' 3); set ytics ('1' 0, '2' 1, '5' 2, '10' 3); set cblabel 'ATM value [bp of notional]'");
+plot.cmd("set palette defined (0 '#f7fbff', 0.5 '#6baed6', 1 '#08306b'); set title 'ATM payer swaption value' font ',11'");
+plot.cmd("splot 'data/swaption_grid.txt' u 2:1:3 w image notitle, '' u 2:1:(0):(sprintf('%.0f bp\\nfwd %.2f%%', $3, $4)) w labels font ',9' tc rgb 'black' notitle");
+plot.cmd("set size nosquare; set border 3; set tics nomirror; set grid lc rgb '#dddddd'; set xtics autofreq; set ytics autofreq; set key at graph 0.5, 0.93 center box opaque font ',9' samplen 2");
+plot.cmd("set title '1Y x 5Y swaption against the strike' font ',11'; set xlabel 'strike [%]'; set ylabel 'value [bp of notional]'; set xrange [2:5]; set yrange [0:1000]");
+plot.cmd("set arrow 1 from fk, 0 to fk, 1000 nohead dt 2 lc rgb '#555555'; set label 1 sprintf('forward %.2f%%', fk) at fk + 0.05, 640 font ',9'");
+plot.cmd("plot 'data/swaption_strike.csv' u 1:2 w l lw 2.5 lc rgb '#d62728' t 'payer', '' u 1:3 w l lw 2.5 lc rgb '#1f77b4' t 'receiver', '' u 1:4 w l dt 2 lw 1.5 lc rgb '#555555' t 'payer intrinsic: annuity x (fwd - K)'");
+plot.cmd("unset multiplot");
+plot.close();
+end _dsl_
+savedsl(draw, "data/swaption_grid-draw.dslb");
+r = system ${dsl_cli(draw)} --dsl data/swaption_grid-draw.dslb;
+if (r.code != 0) { println(r.stderr); }
+assert(r.code == 0);
+println("wrote images/swaption_grid.png");

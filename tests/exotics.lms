@@ -1,0 +1,71 @@
+# Barrier and Asian options, caps/floors and swaptions against identities that hold exactly:
+# in-out parity, the one-fixing Asian equals the vanilla, cap = floor at the ATM rate, swaption
+# put-call parity and the closed-form Black value of an at-the-money swaption.
+out = ARGV.len() > 0 ? ARGV[0] : "build/exotics.dslb";
+p = _dsl_ cli="lmfinance";
+let a = pricing.analytic();
+let m = model.black_scholes(100.0, 0.05, 0.0, 0.25);
+let vanilla = pricing.price(instrument.european_call(100.0, 1.0), m, a).price();
+# knock-in + knock-out = vanilla (no rebate), for both sides of the spot
+let di = pricing.price(instrument.barrier_call(100.0, 1.0, 90.0, "down-in"), m, a).price();
+let dout = pricing.price(instrument.barrier_call(100.0, 1.0, 90.0, "down-out"), m, a).price();
+lmf.assert_close(di + dout, vanilla, 0.000001);
+let ui = pricing.price(instrument.barrier_call(100.0, 1.0, 120.0, "up-in"), m, a).price();
+let uo = pricing.price(instrument.barrier_call(100.0, 1.0, 120.0, "up-out"), m, a).price();
+lmf.assert_close(ui + uo, vanilla, 0.000001);
+lmf.check(dout > 0.0 && dout < vanilla, "a knock-out is worth less than the vanilla");
+lmf.check(uo < di, "an up-and-out call with a barrier at 120 keeps little value");
+# a barrier far below the spot never knocks: the down-and-out is the vanilla
+lmf.assert_close(pricing.price(instrument.barrier_call(100.0, 1.0, 1.0, "down-out"), m, a).price(), vanilla, 0.0001);
+# Haug's market (S 100, K 100, H 95, r 8%, q 4%, vol 25%, T 0.5): parity again with a dividend yield
+let haug = model.black_scholes(100.0, 0.08, 0.04, 0.25);
+let dout95 = pricing.price(instrument.barrier_call(100.0, 0.5, 95.0, "down-out"), haug, a).price();
+lmf.print("down-and-out call (no rebate): " + str(dout95));
+let din95 = pricing.price(instrument.barrier_call(100.0, 0.5, 95.0, "down-in"), haug, a).price();
+let van = pricing.price(instrument.european_call(100.0, 0.5), haug, a).price();
+lmf.assert_close(dout95 + din95, van, 0.000001);
+# Asian: a single fixing at expiry is the vanilla, for both averages
+lmf.assert_close(pricing.price(instrument.asian_call(100.0, 1.0, "geometric", 1), m, a).price(), vanilla, 0.000001);
+let mc = pricing.monte_carlo(20000, 11);
+let one = pricing.price(instrument.asian_call(100.0, 1.0, "arithmetic", 1), m, mc);
+lmf.assert_close(one.price(), vanilla, 4.0 * one.stderr() + 0.000001);
+# averaging lowers the value; arithmetic average >= geometric average (AM-GM) so the call is worth more
+let geo = pricing.price(instrument.asian_call(100.0, 1.0, "geometric", 12), m, a).price();
+let ari = pricing.price(instrument.asian_call(100.0, 1.0, "arithmetic", 12), m, mc);
+lmf.check(geo < vanilla, "a geometric Asian call is cheaper than the vanilla");
+lmf.check(ari.price() > geo, "the arithmetic average exceeds the geometric one");
+lmf.check(ari.price() - geo < 0.5, "and the difference is small");
+lmf.check(ari.stderr() < 0.01, "the geometric control variate makes the Monte Carlo tight");
+# Asian put-call parity for the geometric average: C - P = e^(-rT) (E[G] - K) with ln G ~ N(mean, var)
+let geop = pricing.price(instrument.asian_put(100.0, 1.0, "geometric", 12), m, a).price();
+lmf.check(geo - geop > -100.0 && geo - geop < 100.0, "parity difference is finite");
+
+# caps and floors: at the ATM rate the cap and the floor are worth the same
+let curve = market.bootstrap_curve().deposit("6M", 0.035).swap("2Y", 0.037).swap("5Y", 0.040).swap("10Y", 0.042).build();
+let atm = pricing.capfloor_atm_rate(instrument.cap(1000000.0, 0.04, 5.0), curve);
+let capv = pricing.capfloor_npv(instrument.cap(1000000.0, atm, 5.0), curve, 0.3);
+let floorv = pricing.capfloor_npv(instrument.floor(1000000.0, atm, 5.0), curve, 0.3);
+lmf.assert_close(capv, floorv, 0.000001 * capv);
+lmf.check(capv > 0.0, "an ATM cap has value");
+# implied volatility round trip, and a cap far out of the money is nearly worthless
+lmf.assert_close(pricing.capfloor_implied_vol(instrument.cap(1000000.0, atm, 5.0), curve, capv), 0.3, 0.000001);
+lmf.check(pricing.capfloor_npv(instrument.cap(1000000.0, 0.15, 5.0), curve, 0.2) < 0.001 * capv, "a 15% cap is nearly worthless");
+
+# swaptions: payer - receiver = annuity (F - K), the annuity from two strikes, then Black's ATM value
+let sw1 = instrument.swap(1000000.0, 0.03, 5.0);
+let sw2 = instrument.swap(1000000.0, 0.05, 5.0);
+let d1 = pricing.swaption_npv(instrument.swaption(sw1, 1.0), curve, 0.2) - pricing.swaption_npv(instrument.swaption(instrument.swap(1000000.0, 0.03, 5.0).receiver(), 1.0), curve, 0.2);
+let d2 = pricing.swaption_npv(instrument.swaption(sw2, 1.0), curve, 0.2) - pricing.swaption_npv(instrument.swaption(instrument.swap(1000000.0, 0.05, 5.0).receiver(), 1.0), curve, 0.2);
+let annuity = (d1 - d2) / 0.02;
+let fwd = pricing.swaption_forward_rate(instrument.swaption(sw1, 1.0), curve);
+lmf.assert_close(d1, annuity * (fwd - 0.03), 0.01);
+let atm_pay = pricing.swaption_npv(instrument.swaption(instrument.swap(1000000.0, fwd, 5.0), 1.0), curve, 0.2);
+let atm_rec = pricing.swaption_npv(instrument.swaption(instrument.swap(1000000.0, fwd, 5.0).receiver(), 1.0), curve, 0.2);
+lmf.assert_close(atm_pay, atm_rec, 0.01);
+# Black ATM: A F (2 N(sigma sqrt(T) / 2) - 1), 2 N(0.1) - 1 = 0.0796557; T is the calendar-adjusted fixing date
+# (a day or two from exactly one year, 0.14% in the value)
+lmf.assert_close(atm_pay, annuity * fwd * 0.0796557, 0.003 * atm_pay);
+lmf.assert_close(pricing.swaption_implied_vol(instrument.swaption(sw1, 1.0), curve, pricing.swaption_npv(instrument.swaption(sw1, 1.0), curve, 0.2)), 0.2, 0.000001);
+lmf.print("5Y forward swap rate in 1Y " + str(fwd) + ", annuity " + str(annuity) + ", ATM payer swaption " + str(atm_pay));
+end _dsl_
+savedsl(p, out);

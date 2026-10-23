@@ -1,0 +1,84 @@
+# Calibrating Heston to a volatility surface. A "market" surface is generated from a known Heston model (v0 = 0.04,
+# kappa = 1.5, theta = 0.05, sigma = 0.5, rho = -0.6) at four maturities x nine strikes, then lmfinance's
+# Levenberg-Marquardt fit starts from a deliberately wrong guess (v0 = 0.09, rho = -0.2). The fitted smiles land on
+# the quotes (root-mean-square vol error below 1e-4, rho and v0 recovered, asserted); the fit either converges or
+# stops with an error since 0.1.2 (no silent half-fits). lmplot draws images/heston_calibration.png: market dots and
+# fitted smiles per maturity, and the residuals in vol points.
+mkdir("images");
+mkdir("data");
+sim = _dsl_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
+let a = pricing.analytic();
+let truth = model.heston(100.0, 0.03, 0.0, 0.04, 1.5, 0.05, 0.5, -0.6);
+let bs = model.black_scholes(100.0, 0.03, 0.0, 0.2);
+let fit = calibration.heston(100.0, 0.03, 0.0);
+let quotes = "";
+for (m in range(0, 4)) {
+  let years = 0.25;
+  if (m == 1) { years = 0.5; }
+  if (m == 2) { years = 1.0; }
+  if (m == 3) { years = 2.0; }
+  for (k in range(0, 9)) {
+    let strike = 80.0 + 5.0 * float(k);
+    let opt = instrument.european_call(strike, years);
+    let iv = calibration.implied_vol(opt, bs, a, pricing.price(opt, truth, a).price());
+    fit.quote(strike, years, iv);
+    quotes = quotes + str(strike) + " " + str(years) + " " + str(100.0 * iv) + "\n";
+  }
+}
+lmf.save_text("data/heston_quotes.csv", quotes);
+fit.guess(0.09, 1.0, 0.09, 0.8, -0.2);
+let fitted = fit.fit();
+lmf.print("rms implied-vol error " + str(fit.error()) + "; v0 " + str(fitted.param("v0")) + " kappa " + str(fitted.param("kappa")) + " theta " + str(fitted.param("theta")) + " sigma " + str(fitted.param("sigma")) + " rho " + str(fitted.param("rho")));
+lmf.assert_close(fit.error(), 0.0, 0.0001);
+lmf.assert_close(fitted.param("rho"), -0.6, 0.02);
+lmf.assert_close(fitted.param("v0"), 0.04, 0.002);
+lmf.assert_close(fitted.param("theta"), 0.05, 0.005);
+# fitted smiles on a fine strike grid, and the residual at every quote
+let smiles = "";
+let resid = "";
+let worst = 0.0;
+for (m in range(0, 4)) {
+  let years = 0.25;
+  if (m == 1) { years = 0.5; }
+  if (m == 2) { years = 1.0; }
+  if (m == 3) { years = 2.0; }
+  for (k in range(0, 41)) {
+    let strike = 80.0 + 1.0 * float(k);
+    let opt = instrument.european_call(strike, years);
+    let iv = calibration.implied_vol(opt, bs, a, pricing.price(opt, fitted, a).price());
+    smiles = smiles + str(strike) + " " + str(years) + " " + str(100.0 * iv) + "\n";
+    if (k % 5 == 0) {
+      let mkt = calibration.implied_vol(opt, bs, a, pricing.price(opt, truth, a).price());
+      resid = resid + str(strike) + " " + str(years) + " " + str(100.0 * (iv - mkt)) + "\n";
+      worst = max(worst, abs(iv - mkt));
+    }
+  }
+  smiles = smiles + "\n\n";
+}
+lmf.save_text("data/heston_smiles.csv", smiles);
+lmf.save_text("data/heston_resid.csv", resid);
+lmf.print("largest residual " + str(100.0 * worst) + " vol points");
+end _dsl_
+savedsl(sim, "data/heston_calibration-sim.dslb");
+r = system ${dsl_cli(sim)} --dsl data/heston_calibration-sim.dslb;
+if (r.code != 0) { println(r.stdout); }
+assert(r.code == 0);
+
+draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+plot.png("images/heston_calibration.png", 1000, 480);
+plot.cmd("set multiplot layout 1,2 title 'Heston calibrated to a 4 x 9 implied-volatility surface (lmfinance Levenberg-Marquardt)' font ',13'");
+plot.cmd("set border 3; set tics nomirror; set grid lc rgb '#dddddd'; set xlabel 'strike'; set ylabel 'implied volatility [%]'; set xrange [78:122]");
+plot.cmd("set key top right box opaque font ',9' samplen 2 title 'maturity'");
+plot.cmd("set style line 1 lc rgb '#d62728'; set style line 2 lc rgb '#ff7f0e'; set style line 3 lc rgb '#2ca02c'; set style line 4 lc rgb '#1f77b4'");
+plot.cmd("plot for [m=0:3] 'data/heston_smiles.csv' index m u 1:3 w l ls m+1 lw 2.5 t sprintf('%.2f y', m==0?0.25:m==1?0.5:m==2?1:2), 'data/heston_quotes.csv' u 1:3 w p pt 6 ps 1.3 lw 1.5 lc rgb 'black' t 'market quotes'");
+plot.cmd("set ylabel 'fitted - market [vol points]'; set yrange [-0.05:0.05]; set key top right title ''");
+plot.cmd("set label 1 'rms error below 1e-4 vol points' at graph 0.5, 0.1 center font ',10'");
+plot.cmd("plot 0 w l lc rgb '#aaaaaa' notitle, 'data/heston_resid.csv' u 1:3:(int($2*4) == 1 ? 1 : int($2*4) == 2 ? 2 : int($2*4) == 4 ? 3 : 4) w p pt 7 ps 1 lc variable t 'residual at each of the 36 quotes'");
+plot.cmd("unset multiplot");
+plot.close();
+end _dsl_
+savedsl(draw, "data/heston_calibration-draw.dslb");
+r = system ${dsl_cli(draw)} --dsl data/heston_calibration-draw.dslb;
+if (r.code != 0) { println(r.stderr); }
+assert(r.code == 0);
+println("wrote images/heston_calibration.png");

@@ -1,0 +1,145 @@
+# The cash flows of a 5-year payer swap, drawn as the classic diagram: fixed coupons go down (paid), the floating
+# coupons implied by the bootstrapped curve's forward rates come up (received), each with its present value. lmfinance
+# bootstraps the curve, prices the swap and its par rate; lmscript rebuilds the two legs from the curve's forward
+# rates and discount factors and checks that they agree with lmfinance's NPV (to 0.1% of notional: the hand-made legs
+# use plain half-year and year fractions instead of the swap's day counts and business days). lmdraw draws
+# images/swap_cashflows.png (needs lmdraw).
+mkdir("images");
+mkdir("data");
+mkdir("build/rendered");
+sim = _dsl_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
+market.set_date("2024-01-02");
+let curve = market.bootstrap_curve().deposit("6M", 0.035).swap("1Y", 0.036).swap("2Y", 0.037).swap("3Y", 0.038).swap("5Y", 0.040).swap("7Y", 0.041).build();
+let notional = 1000000.0;
+let fixed_rate = 0.045;
+let swap = instrument.swap(notional, fixed_rate, 5.0);
+let npv = pricing.swap_npv(swap, curve);
+let par = pricing.swap_par_rate(swap, curve);
+let text = "k,t,kind,cash,pv\n";
+let pv_fixed = 0.0;
+let pv_float = 0.0;
+for (k in range(1, 11)) {
+  let t = 0.5 * float(k);
+  let f = curve.forward(t - 0.5, t);                                   # continuous forward over the half year
+  let simple = 2.0 * (pow(2.718281828459045, 0.5 * f) - 1.0);          # simple rate for the period
+  let cash = notional * simple * 0.5;
+  let pv = cash * curve.discount(t);
+  pv_float = pv_float + pv;
+  text = text + str(k) + "," + str(t) + ",float," + str(cash) + "," + str(pv) + "\n";
+  if (k % 2 == 0) {
+    let fixed = notional * fixed_rate;
+    let pvf = fixed * curve.discount(t);
+    pv_fixed = pv_fixed + pvf;
+    text = text + str(k) + "," + str(t) + ",fixed," + str(fixed) + "," + str(pvf) + "\n";
+  }
+}
+lmf.save_text("data/swap_cashflows.csv", text);
+lmf.print("lmfinance NPV " + str(npv) + ", par " + str(par) + "; by hand: floating leg " + str(pv_float) + " - fixed leg " + str(pv_fixed) + " = " + str(pv_float - pv_fixed));
+lmf.assert_close(pv_float - pv_fixed, npv, 0.001 * notional);
+lmf.check(npv < 0.0, "paying 4.5% when the par rate is 4% costs money");
+lmf.save_text("data/swap_summary.csv", "npv,par,fixedleg,floatleg\n" + str(npv) + "," + str(par) + "," + str(pv_fixed) + "," + str(pv_float) + "\n");
+end _dsl_
+savedsl(sim, "data/swap_cashflows-sim.dslb");
+r = system ${dsl_cli(sim)} --dsl data/swap_cashflows-sim.dslb;
+if (r.code != 0) { println(r.stdout); }
+assert(r.code == 0);
+
+rows = csv_parse(read_file("data/swap_cashflows.csv"));
+summary = csv_parse(read_file("data/swap_summary.csv"))[0];
+# geometry: time axis from x = 120 (t = 0) to x = 820 (t = 5), baseline y = 270, 3 px per thousand
+fn tx(t) { return 120.0 + 140.0 * t; }
+fn h(cash) { return cash / 1000.0 * 3.0; }
+fl = []; fx = [];
+for (m in rows) { if (m.get("kind", "") == "float") { push(fl, m); } else { push(fx, m); } }
+f_x = []; f_tip = []; f_lbl = []; f_lx = []; f_ly = []; f_pv = [];
+for (i in range(0, 10)) {
+  m = fl[i];
+  push(f_x, tx(m.get("t", 0.0)) + 0.0001);
+  push(f_tip, 270.0 - h(m.get("cash", 0.0)) + 0.0001);
+  push(f_lbl, sprintf("%.1fk", m.get("cash", 0.0) / 1000.0));
+  push(f_pv, sprintf("pv %.1fk", m.get("pv", 0.0) / 1000.0));
+}
+x_x = []; x_tip = []; x_lbl = []; x_pv = [];
+for (i in range(0, 5)) {
+  m = fx[i];
+  push(x_x, tx(m.get("t", 0.0)) + 0.0001);
+  push(x_tip, 270.0 + h(m.get("cash", 0.0)) + 0.0001);
+  push(x_lbl, sprintf("-%.0fk", m.get("cash", 0.0) / 1000.0));
+  push(x_pv, sprintf("pv %.1fk", m.get("pv", 0.0) / 1000.0));
+}
+t_npv = sprintf("NPV to the payer = floating leg %.0fk - fixed leg %.0fk = %.1fk", summary.get("floatleg", 0.0) / 1000.0, summary.get("fixedleg", 0.0) / 1000.0, summary.get("npv", 0.0) / 1000.0);
+t_par = "par rate " + sprintf("%.3f", 100.0 * summary.get("par", 0.0)) + " percent: the fixed rate that would make the NPV zero (we pay 4.5 percent)";
+
+d = _dsl_ cli="lmdraw" install="github:lmctl-ai/lmdraw@latest";
+scene.canvas(900, 520, "#0f1720");
+scene.text(40.0, 44.0, 24.0, "A 5-year payer swap, flow by flow", "#e6edf3").set_attr("font-weight", "700");
+scene.text(40.0, 72.0, 14.0, "Pay 4.5% fixed yearly, receive 6-month Euribor half-yearly on 1 million; floating coupons are the curve's forward rates", "#9fb3c8");
+scene.line(100.0, 270.0, 850.0, 270.0, "#7f97ad", 1.5).set_attr("marker-end", "arrow");
+scene.text(856.0, 275.0, 12.0, "years", "#9fb3c8");
+scene.text(120.0, 292.0, 12.0, "0", "#9fb3c8").set_attr("text-anchor", "middle");
+scene.text(260.0, 292.0, 12.0, "1", "#9fb3c8").set_attr("text-anchor", "middle");
+scene.text(400.0, 292.0, 12.0, "2", "#9fb3c8").set_attr("text-anchor", "middle");
+scene.text(540.0, 292.0, 12.0, "3", "#9fb3c8").set_attr("text-anchor", "middle");
+scene.text(680.0, 292.0, 12.0, "4", "#9fb3c8").set_attr("text-anchor", "middle");
+scene.text(820.0, 292.0, 12.0, "5", "#9fb3c8").set_attr("text-anchor", "middle");
+# floating leg up (received)
+scene.arrow(${f_x[0]}, 270.0, ${f_x[0]}, ${f_tip[0]}, "#6fbdb4", 3.0);
+scene.arrow(${f_x[1]}, 270.0, ${f_x[1]}, ${f_tip[1]}, "#6fbdb4", 3.0);
+scene.arrow(${f_x[2]}, 270.0, ${f_x[2]}, ${f_tip[2]}, "#6fbdb4", 3.0);
+scene.arrow(${f_x[3]}, 270.0, ${f_x[3]}, ${f_tip[3]}, "#6fbdb4", 3.0);
+scene.arrow(${f_x[4]}, 270.0, ${f_x[4]}, ${f_tip[4]}, "#6fbdb4", 3.0);
+scene.arrow(${f_x[5]}, 270.0, ${f_x[5]}, ${f_tip[5]}, "#6fbdb4", 3.0);
+scene.arrow(${f_x[6]}, 270.0, ${f_x[6]}, ${f_tip[6]}, "#6fbdb4", 3.0);
+scene.arrow(${f_x[7]}, 270.0, ${f_x[7]}, ${f_tip[7]}, "#6fbdb4", 3.0);
+scene.arrow(${f_x[8]}, 270.0, ${f_x[8]}, ${f_tip[8]}, "#6fbdb4", 3.0);
+scene.arrow(${f_x[9]}, 270.0, ${f_x[9]}, ${f_tip[9]}, "#6fbdb4", 3.0);
+scene.text(${f_x[0]}, ${f_tip[0]} - 8.0, 11.0, ${f_lbl[0]}, "#e6edf3").set_attr("text-anchor", "middle");
+scene.text(${f_x[1]}, ${f_tip[1]} - 8.0, 11.0, ${f_lbl[1]}, "#e6edf3").set_attr("text-anchor", "middle");
+scene.text(${f_x[2]}, ${f_tip[2]} - 8.0, 11.0, ${f_lbl[2]}, "#e6edf3").set_attr("text-anchor", "middle");
+scene.text(${f_x[3]}, ${f_tip[3]} - 8.0, 11.0, ${f_lbl[3]}, "#e6edf3").set_attr("text-anchor", "middle");
+scene.text(${f_x[4]}, ${f_tip[4]} - 8.0, 11.0, ${f_lbl[4]}, "#e6edf3").set_attr("text-anchor", "middle");
+scene.text(${f_x[5]}, ${f_tip[5]} - 8.0, 11.0, ${f_lbl[5]}, "#e6edf3").set_attr("text-anchor", "middle");
+scene.text(${f_x[6]}, ${f_tip[6]} - 8.0, 11.0, ${f_lbl[6]}, "#e6edf3").set_attr("text-anchor", "middle");
+scene.text(${f_x[7]}, ${f_tip[7]} - 8.0, 11.0, ${f_lbl[7]}, "#e6edf3").set_attr("text-anchor", "middle");
+scene.text(${f_x[8]}, ${f_tip[8]} - 8.0, 11.0, ${f_lbl[8]}, "#e6edf3").set_attr("text-anchor", "middle");
+scene.text(${f_x[9]}, ${f_tip[9]} - 8.0, 11.0, ${f_lbl[9]}, "#e6edf3").set_attr("text-anchor", "middle");
+scene.text(${f_x[0]}, ${f_tip[0]} - 22.0, 10.0, ${f_pv[0]}, "#8fc9c2").set_attr("text-anchor", "middle");
+scene.text(${f_x[1]}, ${f_tip[1]} - 22.0, 10.0, ${f_pv[1]}, "#8fc9c2").set_attr("text-anchor", "middle");
+scene.text(${f_x[2]}, ${f_tip[2]} - 22.0, 10.0, ${f_pv[2]}, "#8fc9c2").set_attr("text-anchor", "middle");
+scene.text(${f_x[3]}, ${f_tip[3]} - 22.0, 10.0, ${f_pv[3]}, "#8fc9c2").set_attr("text-anchor", "middle");
+scene.text(${f_x[4]}, ${f_tip[4]} - 22.0, 10.0, ${f_pv[4]}, "#8fc9c2").set_attr("text-anchor", "middle");
+scene.text(${f_x[5]}, ${f_tip[5]} - 22.0, 10.0, ${f_pv[5]}, "#8fc9c2").set_attr("text-anchor", "middle");
+scene.text(${f_x[6]}, ${f_tip[6]} - 22.0, 10.0, ${f_pv[6]}, "#8fc9c2").set_attr("text-anchor", "middle");
+scene.text(${f_x[7]}, ${f_tip[7]} - 22.0, 10.0, ${f_pv[7]}, "#8fc9c2").set_attr("text-anchor", "middle");
+scene.text(${f_x[8]}, ${f_tip[8]} - 22.0, 10.0, ${f_pv[8]}, "#8fc9c2").set_attr("text-anchor", "middle");
+scene.text(${f_x[9]}, ${f_tip[9]} - 22.0, 10.0, ${f_pv[9]}, "#8fc9c2").set_attr("text-anchor", "middle");
+# fixed leg down (paid), drawn a little to the right so the yearly flows do not hide the floating ones
+scene.arrow(${x_x[0]} + 10.0, 270.0, ${x_x[0]} + 10.0, ${x_tip[0]}, "#f08a6c", 4.0);
+scene.arrow(${x_x[1]} + 10.0, 270.0, ${x_x[1]} + 10.0, ${x_tip[1]}, "#f08a6c", 4.0);
+scene.arrow(${x_x[2]} + 10.0, 270.0, ${x_x[2]} + 10.0, ${x_tip[2]}, "#f08a6c", 4.0);
+scene.arrow(${x_x[3]} + 10.0, 270.0, ${x_x[3]} + 10.0, ${x_tip[3]}, "#f08a6c", 4.0);
+scene.arrow(${x_x[4]} + 10.0, 270.0, ${x_x[4]} + 10.0, ${x_tip[4]}, "#f08a6c", 4.0);
+scene.text(${x_x[0]} + 10.0, ${x_tip[0]} + 16.0, 11.0, ${x_lbl[0]}, "#e6edf3").set_attr("text-anchor", "middle");
+scene.text(${x_x[1]} + 10.0, ${x_tip[1]} + 16.0, 11.0, ${x_lbl[1]}, "#e6edf3").set_attr("text-anchor", "middle");
+scene.text(${x_x[2]} + 10.0, ${x_tip[2]} + 16.0, 11.0, ${x_lbl[2]}, "#e6edf3").set_attr("text-anchor", "middle");
+scene.text(${x_x[3]} + 10.0, ${x_tip[3]} + 16.0, 11.0, ${x_lbl[3]}, "#e6edf3").set_attr("text-anchor", "middle");
+scene.text(${x_x[4]} + 10.0, ${x_tip[4]} + 16.0, 11.0, ${x_lbl[4]}, "#e6edf3").set_attr("text-anchor", "middle");
+scene.text(${x_x[0]} + 10.0, ${x_tip[0]} + 30.0, 10.0, ${x_pv[0]}, "#f5b7a3").set_attr("text-anchor", "middle");
+scene.text(${x_x[1]} + 10.0, ${x_tip[1]} + 30.0, 10.0, ${x_pv[1]}, "#f5b7a3").set_attr("text-anchor", "middle");
+scene.text(${x_x[2]} + 10.0, ${x_tip[2]} + 30.0, 10.0, ${x_pv[2]}, "#f5b7a3").set_attr("text-anchor", "middle");
+scene.text(${x_x[3]} + 10.0, ${x_tip[3]} + 30.0, 10.0, ${x_pv[3]}, "#f5b7a3").set_attr("text-anchor", "middle");
+scene.text(${x_x[4]} + 10.0, ${x_tip[4]} + 30.0, 10.0, ${x_pv[4]}, "#f5b7a3").set_attr("text-anchor", "middle");
+scene.line(60.0, 120.0, 90.0, 120.0, "#6fbdb4", 3.0);
+scene.text(98.0, 125.0, 12.0, "floating coupons received (forward rate x 1/2 year x notional)", "#e6edf3");
+scene.line(60.0, 142.0, 90.0, 142.0, "#f08a6c", 4.0);
+scene.text(98.0, 147.0, 12.0, "fixed coupons paid (4.5% x notional)", "#e6edf3");
+scene.text(40.0, 474.0, 14.0, ${t_npv}, "#ffd166");
+scene.text(40.0, 498.0, 12.0, ${t_par}, "#9fb3c8");
+scene.render_png("build/rendered/swap_cashflows.png", 900, 520, 1);
+end _dsl_
+savedsl(d, "data/swap_cashflows-draw.dslb");
+r = system ${dsl_cli(d)} --dsl data/swap_cashflows-draw.dslb;
+if (r.code != 0) { println(r.stderr); }
+assert(r.code == 0);
+copy_file("build/rendered/swap_cashflows.png", "images/swap_cashflows.png");
+println("wrote images/swap_cashflows.png");

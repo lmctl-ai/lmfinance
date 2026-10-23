@@ -1,0 +1,61 @@
+# The Greeks of a call as surfaces over spot and time to expiry (K = 100, r = 5%, vol = 20%). lmfinance's analytic
+# engine returns delta, gamma, vega and theta; a 41 x 40 grid of spot 60..140 and 0.02..2 years goes to lmplot as
+# four heat maps: delta sharpens into a step at the strike as expiry nears, gamma and vega concentrate at the money
+# (gamma near expiry, vega far from it), theta bleeds fastest at the money just before expiry. Checks: the one-year ATM delta
+# 0.6368, vega largest near the money, gamma integrating to delta(140) - delta(60) across spot, theta fastest ATM. Output images/greeks_surface.png.
+mkdir("images");
+mkdir("data");
+sim = _dsl_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
+let a = pricing.analytic();
+let rows = "";
+let vega_atm = 0.0;
+let vega_far = 0.0;
+let gamma_sum = 0.0;
+for (j in range(0, 40)) {
+  let t = 0.02 + 1.98 * float(j) / 39.0;
+  let call = instrument.european_call(100.0, t);
+  for (i in range(0, 41)) {
+    let s = 60.0 + 2.0 * float(i);
+    let r = pricing.price(call, model.black_scholes(s, 0.05, 0.0, 0.2), a);
+    rows = rows + str(s) + " " + str(t) + " " + str(r.delta()) + " " + str(r.gamma()) + " " + str(r.vega()) + " " + str(r.theta()) + "\n";
+    if (j == 20) {
+      if (i == 20) { vega_atm = r.vega(); }
+      if (i == 40) { vega_far = r.vega(); }
+      gamma_sum = gamma_sum + 2.0 * r.gamma();
+    }
+  }
+  rows = rows + "\n";
+}
+lmf.save_text("data/greeks_surface.txt", rows);
+lmf.check(vega_atm > 3.0 * vega_far, "vega concentrates near the money");
+lmf.assert_close(gamma_sum, 0.967, 0.01);          # integral of gamma over spot 60..140 = delta(140) - delta(60)
+# delta is 0.5 near the strike (a little above it: the forward is K exp(rT))
+let d = pricing.price(instrument.european_call(100.0, 1.0), model.black_scholes(100.0, 0.05, 0.0, 0.2), a).delta();
+lmf.assert_close(d, 0.6368, 0.0001);
+let theta_atm = pricing.price(instrument.european_call(100.0, 0.05), model.black_scholes(100.0, 0.05, 0.0, 0.2), a).theta();
+let theta_otm = pricing.price(instrument.european_call(100.0, 0.05), model.black_scholes(80.0, 0.05, 0.0, 0.2), a).theta();
+lmf.check(theta_atm < theta_otm - 10.0, "time decay is fastest at the money near expiry");
+lmf.print("ATM 1-year delta " + str(d) + ", theta near expiry: ATM " + str(theta_atm) + " vs OTM " + str(theta_otm));
+end _dsl_
+savedsl(sim, "data/greeks_surface-sim.dslb");
+r = system ${dsl_cli(sim)} --dsl data/greeks_surface-sim.dslb;
+if (r.code != 0) { println(r.stdout); }
+assert(r.code == 0);
+
+draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+plot.png("images/greeks_surface.png", 1000, 760);
+plot.cmd("set multiplot layout 2,2 title 'Greeks of a European call over spot and time to expiry (lmfinance analytic engine; K = 100, r = 5%, vol = 20%)' font ',12'");
+plot.cmd("set pm3d map interpolate 2,2; set xlabel 'spot'; set ylabel 'years to expiry'; set xrange [60:140]; set yrange [0.02:2]");
+plot.cmd("set palette defined (0 '#f7fbff', 0.5 '#6baed6', 1 '#08306b')");
+plot.cmd("set title 'delta' font ',11'; set cbrange [0:1]; splot 'data/greeks_surface.txt' u 1:2:3 w pm3d notitle");
+plot.cmd("set title 'gamma' font ',11'; set cbrange [0:0.12]; splot 'data/greeks_surface.txt' u 1:2:4 w pm3d notitle");
+plot.cmd("set title 'vega (per 1.00 of vol)' font ',11'; set cbrange [0:60]; splot 'data/greeks_surface.txt' u 1:2:5 w pm3d notitle");
+plot.cmd("set palette defined (0 '#67000d', 0.5 '#fb6a4a', 1 '#fff5f0'); set title 'theta (per year)' font ',11'; set cbrange [-40:0]; splot 'data/greeks_surface.txt' u 1:2:6 w pm3d notitle");
+plot.cmd("unset multiplot");
+plot.close();
+end _dsl_
+savedsl(draw, "data/greeks_surface-draw.dslb");
+r = system ${dsl_cli(draw)} --dsl data/greeks_surface-draw.dslb;
+if (r.code != 0) { println(r.stderr); }
+assert(r.code == 0);
+println("wrote images/greeks_surface.png");

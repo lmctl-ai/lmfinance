@@ -35,6 +35,9 @@ struct Host {
   std::vector<std::unique_ptr<Engine>> engines;
   std::vector<std::unique_ptr<Result>> results;
   std::vector<std::unique_ptr<HestonFit>> fits;
+  std::vector<std::unique_ptr<CapFloor>> capfloors;
+  std::vector<std::unique_ptr<Swaption>> swaptions;
+  std::vector<std::unique_ptr<Series>> series;
   template <class T> Value hold(std::vector<std::unique_ptr<T>> &arena, const char *type, T v) {
     if (arena.size() >= 4000000) throw dslvm::Error(std::string(type) + " object limit exceeded");
     arena.push_back(std::make_unique<T>(std::move(v)));
@@ -137,6 +140,45 @@ void register_host(dslvm::Registry &r, Host &h) {
   method(r, "InstrumentApi", "european_put", {"float", "float"}, "Option", [vanilla](void *, Args &a) { return vanilla(false, false, a); });
   method(r, "InstrumentApi", "american_call", {"float", "float"}, "Option", [vanilla](void *, Args &a) { return vanilla(true, true, a); });
   method(r, "InstrumentApi", "american_put", {"float", "float"}, "Option", [vanilla](void *, Args &a) { return vanilla(false, true, a); });
+  // Exotics: a barrier is knocked in or out when the spot crosses it (continuous monitoring, Reiner-Rubinstein closed
+  // form); an Asian option pays on the average of `fixings` equally spaced observations ending at expiry.
+  auto barrier = [&h](bool call, Args &a) {
+    need(a[0].f > 0, "option strike must be positive");
+    need(a[1].f > 0, "option maturity must be positive");
+    need(a[2].f > 0, "barrier must be positive");
+    const std::string &t = a[3].s;
+    need(t == "up-in" || t == "up-out" || t == "down-in" || t == "down-out", "barrier type must be up-in, up-out, down-in or down-out");
+    Option o; o.call = call; o.strike = a[0].f; o.years = a[1].f; o.exotic = Exotic::Barrier; o.barrier = a[2].f; o.barrier_type = t;
+    return h.hold(h.options, "Option", o);
+  };
+  method(r, "InstrumentApi", "barrier_call", {"float", "float", "float", "string"}, "Option", [barrier](void *, Args &a) { return barrier(true, a); });
+  method(r, "InstrumentApi", "barrier_put", {"float", "float", "float", "string"}, "Option", [barrier](void *, Args &a) { return barrier(false, a); });
+  auto asian = [&h](bool call, Args &a) {
+    need(a[0].f > 0, "option strike must be positive");
+    need(a[1].f > 0, "option maturity must be positive");
+    need(a[2].s == "geometric" || a[2].s == "arithmetic", "averaging must be geometric or arithmetic");
+    need(a[3].i >= 1 && a[3].i <= 10000, "fixings must be 1..10000");
+    Option o; o.call = call; o.strike = a[0].f; o.years = a[1].f; o.exotic = Exotic::Asian; o.averaging = a[2].s; o.fixings = (int)a[3].i;
+    return h.hold(h.options, "Option", o);
+  };
+  method(r, "InstrumentApi", "asian_call", {"float", "float", "string", "int"}, "Option", [asian](void *, Args &a) { return asian(true, a); });
+  method(r, "InstrumentApi", "asian_put", {"float", "float", "string", "int"}, "Option", [asian](void *, Args &a) { return asian(false, a); });
+  method(r, "InstrumentApi", "cap", {"float", "float", "float"}, "CapFloor", [&h](void *, Args &a) {
+    CapFloor c; c.cap = true; c.notional = a[0].f; c.strike = a[1].f; c.years = a[2].f;
+    return h.hold(h.capfloors, "CapFloor", c);
+  });
+  method(r, "InstrumentApi", "floor", {"float", "float", "float"}, "CapFloor", [&h](void *, Args &a) {
+    CapFloor c; c.cap = false; c.notional = a[0].f; c.strike = a[1].f; c.years = a[2].f;
+    return h.hold(h.capfloors, "CapFloor", c);
+  });
+  method(r, "InstrumentApi", "swaption", {"Swap", "float"}, "Swaption", [&h](void *, Args &a) {
+    need(a[1].f > 0, "swaption expiry must be positive");
+    Swaption s; s.swap = obj<Swap>(a[0]); s.expiry = a[1].f;
+    return h.hold(h.swaptions, "Swaption", s);
+  });
+  method(r, "CapFloor", "strike", {}, "float", [](void *p, Args &) { return Value::real(self<CapFloor>(p).strike); });
+  method(r, "CapFloor", "years", {}, "float", [](void *p, Args &) { return Value::real(self<CapFloor>(p).years); });
+  method(r, "Swaption", "expiry", {}, "float", [](void *p, Args &) { return Value::real(self<Swaption>(p).expiry); });
   method(r, "InstrumentApi", "bond", {"float", "float", "float", "int"}, "Bond", [&h](void *, Args &a) {
     Bond b; b.face = a[0].f; b.coupon = a[1].f; b.years = a[2].f; b.freq = (int)a[3].i;
     return h.hold(h.bonds, "Bond", b);
@@ -227,6 +269,12 @@ void register_host(dslvm::Registry &r, Host &h) {
   method(r, "PricingApi", "swap_npv", {"Swap", "Curve"}, "float", [&h](void *, Args &a) { return Value::real(swap_npv(h.clock, obj<Swap>(a[0]), obj<Curve>(a[1]))); });
   method(r, "PricingApi", "swap_par_rate", {"Swap", "Curve"}, "float", [&h](void *, Args &a) { return Value::real(swap_par_rate(h.clock, obj<Swap>(a[0]), obj<Curve>(a[1]))); });
   method(r, "PricingApi", "swap_annuity", {"Swap", "Curve"}, "float", [&h](void *, Args &a) { return Value::real(swap_annuity(h.clock, obj<Swap>(a[0]), obj<Curve>(a[1]))); });
+  method(r, "PricingApi", "capfloor_npv", {"CapFloor", "Curve", "float"}, "float", [&h](void *, Args &a) { return Value::real(capfloor_npv(h.clock, obj<CapFloor>(a[0]), obj<Curve>(a[1]), a[2].f)); });
+  method(r, "PricingApi", "capfloor_implied_vol", {"CapFloor", "Curve", "float"}, "float", [&h](void *, Args &a) { return Value::real(capfloor_implied_vol(h.clock, obj<CapFloor>(a[0]), obj<Curve>(a[1]), a[2].f)); });
+  method(r, "PricingApi", "capfloor_atm_rate", {"CapFloor", "Curve"}, "float", [&h](void *, Args &a) { return Value::real(capfloor_atm_rate(h.clock, obj<CapFloor>(a[0]), obj<Curve>(a[1]))); });
+  method(r, "PricingApi", "swaption_npv", {"Swaption", "Curve", "float"}, "float", [&h](void *, Args &a) { return Value::real(swaption_npv(h.clock, obj<Swaption>(a[0]), obj<Curve>(a[1]), a[2].f)); });
+  method(r, "PricingApi", "swaption_implied_vol", {"Swaption", "Curve", "float"}, "float", [&h](void *, Args &a) { return Value::real(swaption_implied_vol(h.clock, obj<Swaption>(a[0]), obj<Curve>(a[1]), a[2].f)); });
+  method(r, "PricingApi", "swaption_forward_rate", {"Swaption", "Curve"}, "float", [&h](void *, Args &a) { return Value::real(swaption_forward_rate(h.clock, obj<Swaption>(a[0]), obj<Curve>(a[1]))); });
 
   method(r, "Engine", "name", {}, "string", [](void *p, Args &) {
     static const char *n[] = {"analytic", "binomial", "finite_diff", "monte_carlo", "baw"};
@@ -269,6 +317,30 @@ void register_host(dslvm::Registry &r, Host &h) {
     need(a[3].f > 0, "risk.es_normal: horizon must be positive");
     return Value::real(a[0].f * a[1].f * std::sqrt(a[3].f / 252.0) * normal_density(normal_quantile(a[2].f)) / (1.0 - a[2].f));
   });
+
+  // Empirical risk: a file of P/L or return samples (historical or simulated) -> quantiles, VaR, expected shortfall.
+  method(r, "RiskApi", "series", {"string"}, "Series", [&h](void *, Args &a) { return h.hold(h.series, "Series", load_series(a[0].s)); });
+  method(r, "Series", "size", {}, "int", [](void *p, Args &) { return Value::integer((int64_t)self<Series>(p).v.size()); });
+  method(r, "Series", "get", {"int"}, "float", [](void *p, Args &a) {
+    const auto &v = self<Series>(p).v;
+    need(a[0].i >= 0 && a[0].i < (int64_t)v.size(), "Series.get: index " + std::to_string(a[0].i) + " outside 0.." + std::to_string(v.size() - 1));
+    return Value::real(v[a[0].i]);
+  });
+  method(r, "Series", "mean", {}, "float", [](void *p, Args &) {
+    const auto &v = self<Series>(p).v; double s = 0; for (double x : v) s += x; return Value::real(s / v.size());
+  });
+  method(r, "Series", "std", {}, "float", [](void *p, Args &) {
+    const auto &v = self<Series>(p).v;
+    need(v.size() >= 2, "Series.std: need at least 2 values");
+    double m = 0; for (double x : v) m += x; m /= v.size();
+    double s = 0; for (double x : v) s += (x - m) * (x - m);
+    return Value::real(std::sqrt(s / (v.size() - 1)));
+  });
+  method(r, "Series", "min", {}, "float", [](void *p, Args &) { const auto &v = self<Series>(p).v; return Value::real(*std::min_element(v.begin(), v.end())); });
+  method(r, "Series", "max", {}, "float", [](void *p, Args &) { const auto &v = self<Series>(p).v; return Value::real(*std::max_element(v.begin(), v.end())); });
+  method(r, "Series", "quantile", {"float"}, "float", [](void *p, Args &a) { return Value::real(series_quantile(self<Series>(p), a[0].f)); });
+  method(r, "Series", "var", {"float"}, "float", [](void *p, Args &a) { return Value::real(series_var(self<Series>(p), a[0].f)); });
+  method(r, "Series", "es", {"float"}, "float", [](void *p, Args &a) { return Value::real(series_es(self<Series>(p), a[0].f)); });
 
   // ---------------------------------------------------------------- calibration
   method(r, "CalibrationApi", "implied_vol", {"Option", "Model", "Engine", "float"}, "float", [&h](void *, Args &a) {

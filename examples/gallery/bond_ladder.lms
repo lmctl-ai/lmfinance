@@ -1,0 +1,61 @@
+# Price, duration and convexity across the maturity ladder. For bonds of 1 to 30 years with coupons of 2%, 5% and 8%
+# (annual) at a 5% yield, lmfinance gives the clean price, the modified duration and the convexity. Known answers are
+# asserted: a 5% coupon at a 5% yield prices at par for every maturity; a zero-coupon bond's Macaulay duration is its
+# maturity and its modified duration T/(1 + y); duration grows with maturity but saturates (the 30-year 8% bond is
+# "shorter" than the 30-year 2% bond); convexity grows roughly like T^2. lmplot draws images/bond_ladder.png (3 panels).
+mkdir("images");
+mkdir("data");
+sim = _dsl_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
+let y = 0.05;
+let rows = "";
+for (t in range(1, 31)) {
+  let years = float(t);
+  let line = str(t);
+  for (c in range(0, 3)) {
+    let coupon = 0.02 + 0.03 * float(c);
+    let b = instrument.bond(100.0, coupon, years, 1);
+    let price = pricing.bond_price_from_yield(b, y);
+    let dur = pricing.bond_duration(b, y);
+    let conv = pricing.bond_convexity(b, y);
+    if (c == 1) { lmf.assert_close(price, 100.0, 0.0000001); }
+    line = line + " " + str(price) + " " + str(dur) + " " + str(conv);
+  }
+  let z = instrument.zero_bond(100.0, years);
+  let zd = pricing.bond_duration(z, y);
+  lmf.assert_close(pricing.bond_macaulay_duration(z, y), years, 0.0000001);
+  lmf.assert_close(zd, years / 1.05, 0.0000001);
+  rows = rows + line + " " + str(zd) + " " + str(pricing.bond_convexity(z, y)) + "\n";
+}
+lmf.save_text("data/bond_ladder.csv", rows);
+let long_low = pricing.bond_duration(instrument.bond(100.0, 0.02, 30.0, 1), y);
+let long_high = pricing.bond_duration(instrument.bond(100.0, 0.08, 30.0, 1), y);
+lmf.print("30-year modified duration: 2% coupon " + str(long_low) + ", 8% coupon " + str(long_high) + ", zero " + str(30.0 / 1.05));
+lmf.check(long_high < long_low, "a bigger coupon brings cash forward: shorter duration");
+lmf.check(long_low < 30.0 / 1.05, "no coupon bond is longer than the zero");
+# textbook: 10-year 5% annual at 5%: Macaulay duration (1.05/0.05)(1 - 1.05^-10) = 8.1078
+lmf.assert_close(pricing.bond_macaulay_duration(instrument.bond(100.0, 0.05, 10.0, 1), y), 8.1078, 0.0001);
+end _dsl_
+savedsl(sim, "data/bond_ladder-sim.dslb");
+r = system ${dsl_cli(sim)} --dsl data/bond_ladder-sim.dslb;
+if (r.code != 0) { println(r.stdout); }
+assert(r.code == 0);
+
+draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+plot.png("images/bond_ladder.png", 1100, 420);
+plot.cmd("set multiplot layout 1,3 title 'Bonds at a 5% yield across maturities (lmfinance): price, modified duration, convexity' font ',13'");
+plot.cmd("set border 3; set tics nomirror; set grid lc rgb '#dddddd'; set xlabel 'maturity [years]'; set xrange [0:31]");
+plot.cmd("set style line 1 lw 2.5 lc rgb '#d62728'; set style line 2 lw 2.5 lc rgb '#7f7f7f'; set style line 3 lw 2.5 lc rgb '#1f77b4'; set style line 4 lw 2 dt 2 lc rgb '#2ca02c'");
+plot.cmd("set ylabel 'clean price'; set key bottom left box opaque font ',9' samplen 2");
+plot.cmd("plot 'data/bond_ladder.csv' u 1:2 w l ls 1 t '2% coupon', '' u 1:5 w l ls 2 t '5% coupon (par)', '' u 1:8 w l ls 3 t '8% coupon'");
+plot.cmd("set ylabel 'modified duration [years]'; set key top left");
+plot.cmd("plot 'data/bond_ladder.csv' u 1:11 w l ls 4 t 'zero coupon: T / 1.05', '' u 1:3 w l ls 1 t '2%', '' u 1:6 w l ls 2 t '5%', '' u 1:9 w l ls 3 t '8%'");
+plot.cmd("set ylabel 'convexity'; set key top left");
+plot.cmd("plot 'data/bond_ladder.csv' u 1:12 w l ls 4 t 'zero coupon', '' u 1:4 w l ls 1 t '2%', '' u 1:7 w l ls 2 t '5%', '' u 1:10 w l ls 3 t '8%'");
+plot.cmd("unset multiplot");
+plot.close();
+end _dsl_
+savedsl(draw, "data/bond_ladder-draw.dslb");
+r = system ${dsl_cli(draw)} --dsl data/bond_ladder-draw.dslb;
+if (r.code != 0) { println(r.stderr); }
+assert(r.code == 0);
+println("wrote images/bond_ladder.png");

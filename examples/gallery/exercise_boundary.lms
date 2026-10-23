@@ -1,0 +1,69 @@
+# The early-exercise boundary of an American put (K = 100, r = 5%, vol = 20%). For each time to expiry the critical spot
+# S* is the largest spot at which the binomial (CRR, 400 steps) value equals the payoff K - S: below it the holder
+# exercises, above it the option is kept alive. lmfinance prices, lmscript bisects. The boundary starts at K for T -> 0,
+# falls with T, and stays above the perpetual-put limit K g/(1 + g) with g = 2r/vol^2 = 2.5, i.e. 71.43 (both asserted).
+# lmplot draws images/exercise_boundary.png: the boundary with the exercise region shaded, and the value against the
+# payoff at one year with S* marked.
+mkdir("images");
+mkdir("data");
+sim = _dsl_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
+let k = 100.0;
+let engine = pricing.binomial(400);
+fn gap(s: float, t: float, eng: Engine) -> float {
+  return pricing.price(instrument.american_put(100.0, t), model.black_scholes(s, 0.05, 0.0, 0.2), eng).price() - (100.0 - s);
+}
+let rows = "";
+let previous = 100.0;
+let boundary_1y = 0.0;
+for (j in range(0, 21)) {
+  let t = 0.05 + 0.0975 * float(j);                 # 0.05 .. 2 years
+  let lo = 60.0;
+  let hi = 100.0;
+  for (it in range(0, 25)) {
+    let mid = 0.5 * (lo + hi);
+    if (gap(mid, t, engine) > 0.0005) { hi = mid; } else { lo = mid; }
+  }
+  let star = 0.5 * (lo + hi);
+  lmf.check(star < 100.0, "the boundary lies below the strike");
+  lmf.check(star < previous + 0.2, "the boundary falls with time to expiry");   # 0.2 of tree noise allowed
+  lmf.check(star > 71.43, "the boundary stays above the perpetual limit 71.43");
+  previous = star;
+  if (j == 10) { boundary_1y = star; }
+  rows = rows + str(t) + " " + str(star) + "\n";
+}
+lmf.save_text("data/exercise_boundary.csv", rows);
+lmf.print("S* at about one year: " + str(boundary_1y));
+# value and payoff at one year
+let prof = "";
+for (i in range(0, 81)) {
+  let s = 60.0 + float(i) * 0.75;
+  let v = pricing.price(instrument.american_put(100.0, 1.025), model.black_scholes(s, 0.05, 0.0, 0.2), engine).price();
+  prof = prof + str(s) + " " + str(v) + " " + str(max(100.0 - s, 0.0)) + "\n";
+}
+lmf.save_text("data/exercise_value.csv", prof);
+lmf.save_text("data/exercise_star.csv", str(boundary_1y) + " " + str(100.0 - boundary_1y) + "\n");
+end _dsl_
+savedsl(sim, "data/exercise_boundary-sim.dslb");
+r = system ${dsl_cli(sim)} --dsl data/exercise_boundary-sim.dslb;
+if (r.code != 0) { println(r.stdout); }
+assert(r.code == 0);
+
+draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+plot.png("images/exercise_boundary.png", 1000, 480);
+plot.cmd("stats 'data/exercise_star.csv' u 1:2 nooutput; sx = STATS_min_x; sy = STATS_min_y");
+plot.cmd("set multiplot layout 1,2 title 'American put, K = 100, r = 5%, vol = 20% (lmfinance CRR 400 steps): where to exercise' font ',13'");
+plot.cmd("set border 3; set tics nomirror; set grid lc rgb '#dddddd'; set xlabel 'time to expiry [years]'; set ylabel 'spot'; set xrange [0:2]; set yrange [60:105]");
+plot.cmd("set key bottom right box opaque font ',9'");
+plot.cmd("set label 1 'exercise now' at 0.45, 66 center front font ',11' tc rgb '#7f0000'; set label 2 'keep the option' at 1.0, 97 center front font ',11' tc rgb '#08306b'");
+plot.cmd("plot 'data/exercise_boundary.csv' u 1:2:(60) w filledcurves lc rgb '#fdd0a2' notitle, '' u 1:2 w lp pt 7 ps 0.8 lw 2.5 lc rgb '#d62728' t 'critical spot S*(T)', 100 w l lw 1.5 lc rgb '#555555' t 'strike', 71.43 w l dt 2 lw 1.5 lc rgb '#555555' t 'perpetual limit 71.43'");
+plot.cmd("unset label 1; unset label 2; set xlabel 'spot'; set ylabel 'put value at one year'; set xrange [60:120]; set yrange [0:42]; set key top right");
+plot.cmd("set arrow 1 from sx, 0 to sx, sy nohead dt 2 lc rgb '#d62728'; set label 3 sprintf('S* = %.1f', sx) at sx + 1, 4 font ',10' tc rgb '#d62728'");
+plot.cmd("plot 'data/exercise_value.csv' u 1:3 w l lw 1.5 lc rgb '#555555' t 'payoff K - S', '' u 1:2 w l lw 2.5 lc rgb '#08306b' t 'American put'");
+plot.cmd("unset multiplot");
+plot.close();
+end _dsl_
+savedsl(draw, "data/exercise_boundary-draw.dslb");
+r = system ${dsl_cli(draw)} --dsl data/exercise_boundary-draw.dslb;
+if (r.code != 0) { println(r.stderr); }
+assert(r.code == 0);
+println("wrote images/exercise_boundary.png");

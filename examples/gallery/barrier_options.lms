@@ -1,0 +1,78 @@
+# Barrier options (needs lmfinance 0.1.2). An up-and-out call dies when the spot touches the barrier, so it is cheap
+# near it and, unlike a vanilla, can LOSE value when volatility rises (more chance of being knocked out). lmfinance
+# prices the four barrier types with the Reiner-Rubinstein closed form; in-out parity (in + out = vanilla) is asserted
+# to 1e-6, and the up-and-out call's value against volatility is shown to peak and then fall. lmplot draws
+# images/barrier_options.png: value against spot for barriers at 120, 130, 150 (left), value against vol (right).
+mkdir("images");
+mkdir("data");
+sim = _dsl_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
+let a = pricing.analytic();
+let rows = "";
+for (i in range(0, 81)) {
+  let s = 60.0 + float(i);
+  let m = model.black_scholes(s, 0.05, 0.0, 0.2);
+  let vanilla = pricing.price(instrument.european_call(100.0, 1.0), m, a).price();
+  let line = str(s) + " " + str(vanilla);
+  for (b in range(0, 3)) {
+    let barrier = 120.0;
+    if (b == 1) { barrier = 130.0; }
+    if (b == 2) { barrier = 150.0; }
+    let uo = 0.0;
+    let ui = 0.0;
+    if (s < barrier) {
+      uo = pricing.price(instrument.barrier_call(100.0, 1.0, barrier, "up-out"), m, a).price();
+      ui = pricing.price(instrument.barrier_call(100.0, 1.0, barrier, "up-in"), m, a).price();
+      lmf.assert_close(uo + ui, vanilla, 0.000001);
+    } else { ui = vanilla; }
+    line = line + " " + str(uo) + " " + str(ui);
+  }
+  rows = rows + line + "\n";
+}
+lmf.save_text("data/barrier_spot.csv", rows);
+# value against volatility at spot 100 for the three barriers, and the vanilla
+let vrows = "";
+let peak = 0.0;
+let last = 0.0;
+for (i in range(0, 41)) {
+  let vol = 0.05 + 0.01 * float(i);
+  let m = model.black_scholes(100.0, 0.05, 0.0, vol);
+  let vanilla = pricing.price(instrument.european_call(100.0, 1.0), m, a).price();
+  let uo120 = pricing.price(instrument.barrier_call(100.0, 1.0, 120.0, "up-out"), m, a).price();
+  let uo130 = pricing.price(instrument.barrier_call(100.0, 1.0, 130.0, "up-out"), m, a).price();
+  let uo150 = pricing.price(instrument.barrier_call(100.0, 1.0, 150.0, "up-out"), m, a).price();
+  vrows = vrows + str(100.0 * vol) + " " + str(vanilla) + " " + str(uo120) + " " + str(uo130) + " " + str(uo150) + "\n";
+  peak = max(peak, uo120);
+  last = uo120;
+}
+lmf.save_text("data/barrier_vol.csv", vrows);
+lmf.print("up-and-out call (barrier 120) peaks at " + str(peak) + " and is worth " + str(last) + " at 45% vol");
+lmf.check(last < 0.5 * peak, "negative vega: the knock-out call loses more than half its peak value at high vol");
+# a down-and-in put is the cheap crash hedge: it is worth a small fraction of the vanilla put at the same strike
+let m = model.black_scholes(100.0, 0.05, 0.0, 0.2);
+let put = pricing.price(instrument.european_put(90.0, 1.0), m, a).price();
+let di = pricing.price(instrument.barrier_put(90.0, 1.0, 70.0, "down-in"), m, a).price();
+let dout = pricing.price(instrument.barrier_put(90.0, 1.0, 70.0, "down-out"), m, a).price();
+lmf.assert_close(di + dout, put, 0.000001);
+lmf.print("90 put " + str(put) + " = down-and-in (70) " + str(di) + " + down-and-out " + str(dout));
+end _dsl_
+savedsl(sim, "data/barrier_options-sim.dslb");
+r = system ${dsl_cli(sim)} --dsl data/barrier_options-sim.dslb;
+if (r.code != 0) { println(r.stdout); }
+assert(r.code == 0);
+
+draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+plot.png("images/barrier_options.png", 1000, 480);
+plot.cmd("set multiplot layout 1,2 title 'Up-and-out calls, K = 100, 1 year (lmfinance analytic barrier engine): in + out = vanilla, and negative vega' font ',12'");
+plot.cmd("set border 3; set tics nomirror; set grid lc rgb '#dddddd'; set xlabel 'spot'; set ylabel 'call value'; set xrange [60:140]; set yrange [0:45]");
+plot.cmd("set key top left box opaque font ',9' samplen 2");
+plot.cmd("plot 'data/barrier_spot.csv' u 1:2 w l lw 2.5 lc rgb '#555555' t 'vanilla call', '' u 1:3 w l lw 2.5 lc rgb '#d62728' t 'up-and-out, barrier 120', '' u 1:5 w l lw 2.5 lc rgb '#ff7f0e' t 'up-and-out, barrier 130', '' u 1:7 w l lw 2.5 lc rgb '#2ca02c' t 'up-and-out, barrier 150', '' u 1:4 w l dt 2 lw 1.5 lc rgb '#d62728' t 'up-and-in, barrier 120'");
+plot.cmd("set xlabel 'volatility [%]'; set ylabel 'call value at spot 100'; set xrange [5:45]; set yrange [0:22]; set key top left");
+plot.cmd("plot 'data/barrier_vol.csv' u 1:2 w l lw 2.5 lc rgb '#555555' t 'vanilla: vega > 0', '' u 1:3 w l lw 2.5 lc rgb '#d62728' t 'up-and-out 120: vega turns negative', '' u 1:4 w l lw 2.5 lc rgb '#ff7f0e' t 'up-and-out 130', '' u 1:5 w l lw 2.5 lc rgb '#2ca02c' t 'up-and-out 150'");
+plot.cmd("unset multiplot");
+plot.close();
+end _dsl_
+savedsl(draw, "data/barrier_options-draw.dslb");
+r = system ${dsl_cli(draw)} --dsl data/barrier_options-draw.dslb;
+if (r.code != 0) { println(r.stderr); }
+assert(r.code == 0);
+println("wrote images/barrier_options.png");
