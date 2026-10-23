@@ -1,0 +1,46 @@
+# Gamma risk is a spike at the money that sharpens as expiry approaches: the curvature of an option's value in the
+# underlying, i.e. how fast delta changes, that a delta hedger must chase. lmfinance prices a call (strike 100, 25% volatility,
+# 3% rate) on a 41 x 30 grid of spot prices and times to expiry and reads the analytic gamma, which the script asserts
+# against the Black-Scholes formula N'(d1) / (S sigma sqrt(T)) at S = 100, T = 0.5. lmplot draws the heat map.
+# Output: images/gamma_heatmap.png   (run: lmctl autorun <raw url of this file>)
+mkdir("images");
+mkdir("data");
+sim = _dsl_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
+let a = pricing.analytic();
+let rows = "";
+for (i in range(0, 41)) {
+  let s = 70.0 + 1.5 * float(i);
+  let m = model.black_scholes(s, 0.03, 0.0, 0.25);
+  for (j in range(0, 30)) {
+    let t = (4.0 + 12.0 * float(j)) / 365.0;
+    let o = instrument.european_call(100.0, t);
+    rows = rows + str(s) + " " + str(t * 365.0) + " " + str(pricing.price(o, m, a).gamma()) + "\n";
+  }
+  rows = rows + "\n";
+}
+lmf.save_text("data/gamma_grid.txt", rows);
+let m100 = model.black_scholes(100.0, 0.03, 0.0, 0.25);
+let half = instrument.european_call(100.0, 0.5);
+let d1 = (0.03 + 0.5 * 0.0625) * 0.5 / (0.25 * sqrt(0.5));
+let phi = pow(2.718281828459045, -0.5 * d1 * d1) / 2.5066282746310002;
+lmf.assert_close(pricing.price(half, m100, a).gamma(), phi / (100.0 * 0.25 * sqrt(0.5)), 0.0002);
+end _dsl_
+savedsl(sim, "data/gamma_heatmap-sim.dslb");
+r = system ${dsl_cli(sim)} --dsl data/gamma_heatmap-sim.dslb;
+if (r.code != 0) { println(r.stdout); }
+assert(r.code == 0);
+
+draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+plot.png("images/gamma_heatmap.png", 950, 600);
+plot.cmd("set title 'Gamma of a call (strike 100, 25% vol): the at-the-money spike sharpens toward expiry'");
+plot.cmd("set xlabel 'underlying price'; set ylabel 'days to expiry'; set cblabel 'gamma'");
+plot.cmd("set pm3d map interpolate 3,3");
+plot.cmd("set palette defined (0 '#0b1d51', 0.25 '#2a6fb0', 0.5 '#6fc0a8', 0.75 '#f6e05e', 1 '#d62728')");
+plot.cmd("set cbrange [0:0.09]; set xrange [70:130]; set yrange [4:352]");
+plot.cmd("splot 'data/gamma_grid.txt' u 1:2:3 w pm3d notitle");
+plot.close();
+end _dsl_
+savedsl(draw, "data/gamma_heatmap-draw.dslb");
+r = system ${dsl_cli(draw)} --dsl data/gamma_heatmap-draw.dslb;
+assert(r.code == 0);
+println("wrote images/gamma_heatmap.png");

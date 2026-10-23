@@ -1,0 +1,161 @@
+# Duration is the balance point of a bond's cash flows. A 10-year 5% annual bond is discounted on a flat 4% curve: lmfinance
+# gives the discount factors and the bond's value, lmscript sums the present values, and lmdraw draws them as bars (the pale
+# outlines are the undiscounted coupons and principal) on a see-saw whose fulcrum is the PV-weighted average time. The
+# script asserts that the bars add up to lmfinance's bond price (to 10 cents) and that the fulcrum is the Macaulay duration
+# (8.18 years, to 0.05).
+# Output: images/bond_balance.png   (run: lmctl autorun <raw url of this file>)
+mkdir("build/rendered");
+mkdir("images");
+mkdir("data");
+sim = _dsl_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
+let c = market.flat_curve(0.04);
+let b = instrument.bond(100.0, 0.05, 10.0, 1);
+let npv = pricing.bond_npv(b, c);
+let y = pricing.bond_yield(b, pricing.bond_clean_price(b, c));
+let text = "year,cash,pv\n";
+let total = 0.0;
+let weighted = 0.0;
+for (k in range(1, 11)) {
+  let t = float(k);
+  let cash = 5.0;
+  if (k == 10) { cash = 105.0; }
+  let pv = cash * c.discount(t);
+  total = total + pv;
+  weighted = weighted + t * pv;
+  text = text + str(k) + "," + str(cash) + "," + str(pv) + "\n";
+}
+lmf.save_text("data/bond_balance.csv", text);
+lmf.assert_close(total, npv, 0.1);
+lmf.assert_close(weighted / total, pricing.bond_macaulay_duration(b, y), 0.05);
+lmf.print("price " + str(npv) + " macaulay " + str(pricing.bond_macaulay_duration(b, y)));
+end _dsl_
+savedsl(sim, "data/bond_balance-sim.dslb");
+r = system ${dsl_cli(sim)} --dsl data/bond_balance-sim.dslb;
+if (r.code != 0) { println(r.stdout); }
+assert(r.code == 0);
+
+rows = csv_parse(read_file("data/bond_balance.csv"));
+total = 0.0;
+weighted = 0.0;
+for (k in range(0, 10)) {
+  m = rows.get(k, null);
+  total = total + m.get("pv", 0.0);
+  weighted = weighted + m.get("year", 0.0) * m.get("pv", 0.0);
+}
+dur = weighted / total;
+X0 = 90.0;
+SX = 75.0;
+BASE = 380.0;
+PX = 2.4;
+fx = X0 + SX * dur + 0.0001;
+t_price = sprintf("bond value %.2f = sum of the filled bars", total);
+t_dur = sprintf("balance point %.2f years = Macaulay duration", dur);
+tri = sprintf("M %.1f,392 L %.1f,444 L %.1f,444 Z", fx, fx - 24.0, fx + 24.0);
+m0 = rows.get(0, null);
+xb0 = X0 + SX * m0.get("year", 0.0) - 18.0 + 0.0001;
+hb0 = PX * m0.get("pv", 0.0) + 0.0001;
+yb0 = BASE - hb0;
+ho0 = PX * m0.get("cash", 0.0) + 0.0001;
+yo0 = BASE - ho0;
+m1 = rows.get(1, null);
+xb1 = X0 + SX * m1.get("year", 0.0) - 18.0 + 0.0001;
+hb1 = PX * m1.get("pv", 0.0) + 0.0001;
+yb1 = BASE - hb1;
+ho1 = PX * m1.get("cash", 0.0) + 0.0001;
+yo1 = BASE - ho1;
+m2 = rows.get(2, null);
+xb2 = X0 + SX * m2.get("year", 0.0) - 18.0 + 0.0001;
+hb2 = PX * m2.get("pv", 0.0) + 0.0001;
+yb2 = BASE - hb2;
+ho2 = PX * m2.get("cash", 0.0) + 0.0001;
+yo2 = BASE - ho2;
+m3 = rows.get(3, null);
+xb3 = X0 + SX * m3.get("year", 0.0) - 18.0 + 0.0001;
+hb3 = PX * m3.get("pv", 0.0) + 0.0001;
+yb3 = BASE - hb3;
+ho3 = PX * m3.get("cash", 0.0) + 0.0001;
+yo3 = BASE - ho3;
+m4 = rows.get(4, null);
+xb4 = X0 + SX * m4.get("year", 0.0) - 18.0 + 0.0001;
+hb4 = PX * m4.get("pv", 0.0) + 0.0001;
+yb4 = BASE - hb4;
+ho4 = PX * m4.get("cash", 0.0) + 0.0001;
+yo4 = BASE - ho4;
+m5 = rows.get(5, null);
+xb5 = X0 + SX * m5.get("year", 0.0) - 18.0 + 0.0001;
+hb5 = PX * m5.get("pv", 0.0) + 0.0001;
+yb5 = BASE - hb5;
+ho5 = PX * m5.get("cash", 0.0) + 0.0001;
+yo5 = BASE - ho5;
+m6 = rows.get(6, null);
+xb6 = X0 + SX * m6.get("year", 0.0) - 18.0 + 0.0001;
+hb6 = PX * m6.get("pv", 0.0) + 0.0001;
+yb6 = BASE - hb6;
+ho6 = PX * m6.get("cash", 0.0) + 0.0001;
+yo6 = BASE - ho6;
+m7 = rows.get(7, null);
+xb7 = X0 + SX * m7.get("year", 0.0) - 18.0 + 0.0001;
+hb7 = PX * m7.get("pv", 0.0) + 0.0001;
+yb7 = BASE - hb7;
+ho7 = PX * m7.get("cash", 0.0) + 0.0001;
+yo7 = BASE - ho7;
+m8 = rows.get(8, null);
+xb8 = X0 + SX * m8.get("year", 0.0) - 18.0 + 0.0001;
+hb8 = PX * m8.get("pv", 0.0) + 0.0001;
+yb8 = BASE - hb8;
+ho8 = PX * m8.get("cash", 0.0) + 0.0001;
+yo8 = BASE - ho8;
+m9 = rows.get(9, null);
+xb9 = X0 + SX * m9.get("year", 0.0) - 18.0 + 0.0001;
+hb9 = PX * m9.get("pv", 0.0) + 0.0001;
+yb9 = BASE - hb9;
+ho9 = PX * m9.get("cash", 0.0) + 0.0001;
+yo9 = BASE - ho9;
+
+d = _dsl_ cli="lmdraw" install="github:lmctl-ai/lmdraw@latest";
+scene.canvas(900, 520, "#0f1720");
+scene.text(40.0, 44.0, 24.0, "Duration is the balance point of the cash flows", "#e6edf3").set_attr("font-weight", "700");
+scene.text(40.0, 72.0, 14.0, "10-year 5% bond on a flat 4% curve: filled bars are present values, outlines the cash received.", "#9fb3c8");
+scene.rect(60.0, 380.0, 820.0, 10.0, "#5b7690");
+scene.rect(${xb0} - 4.0, ${yo0}, 44.0, ${ho0}, "none").set_attr("stroke", "#5b7690").set_attr("stroke-dasharray", "4 3");
+scene.rect(${xb0}, ${yb0}, 36.0, ${hb0}, "#4fa3ff");
+scene.text(${xb0} + 18.0, 412.0, 13.0, "1", "#9fb3c8").set_attr("text-anchor", "middle");
+scene.rect(${xb1} - 4.0, ${yo1}, 44.0, ${ho1}, "none").set_attr("stroke", "#5b7690").set_attr("stroke-dasharray", "4 3");
+scene.rect(${xb1}, ${yb1}, 36.0, ${hb1}, "#4fa3ff");
+scene.text(${xb1} + 18.0, 412.0, 13.0, "2", "#9fb3c8").set_attr("text-anchor", "middle");
+scene.rect(${xb2} - 4.0, ${yo2}, 44.0, ${ho2}, "none").set_attr("stroke", "#5b7690").set_attr("stroke-dasharray", "4 3");
+scene.rect(${xb2}, ${yb2}, 36.0, ${hb2}, "#4fa3ff");
+scene.text(${xb2} + 18.0, 412.0, 13.0, "3", "#9fb3c8").set_attr("text-anchor", "middle");
+scene.rect(${xb3} - 4.0, ${yo3}, 44.0, ${ho3}, "none").set_attr("stroke", "#5b7690").set_attr("stroke-dasharray", "4 3");
+scene.rect(${xb3}, ${yb3}, 36.0, ${hb3}, "#4fa3ff");
+scene.text(${xb3} + 18.0, 412.0, 13.0, "4", "#9fb3c8").set_attr("text-anchor", "middle");
+scene.rect(${xb4} - 4.0, ${yo4}, 44.0, ${ho4}, "none").set_attr("stroke", "#5b7690").set_attr("stroke-dasharray", "4 3");
+scene.rect(${xb4}, ${yb4}, 36.0, ${hb4}, "#4fa3ff");
+scene.text(${xb4} + 18.0, 412.0, 13.0, "5", "#9fb3c8").set_attr("text-anchor", "middle");
+scene.rect(${xb5} - 4.0, ${yo5}, 44.0, ${ho5}, "none").set_attr("stroke", "#5b7690").set_attr("stroke-dasharray", "4 3");
+scene.rect(${xb5}, ${yb5}, 36.0, ${hb5}, "#4fa3ff");
+scene.text(${xb5} + 18.0, 412.0, 13.0, "6", "#9fb3c8").set_attr("text-anchor", "middle");
+scene.rect(${xb6} - 4.0, ${yo6}, 44.0, ${ho6}, "none").set_attr("stroke", "#5b7690").set_attr("stroke-dasharray", "4 3");
+scene.rect(${xb6}, ${yb6}, 36.0, ${hb6}, "#4fa3ff");
+scene.text(${xb6} + 18.0, 412.0, 13.0, "7", "#9fb3c8").set_attr("text-anchor", "middle");
+scene.rect(${xb7} - 4.0, ${yo7}, 44.0, ${ho7}, "none").set_attr("stroke", "#5b7690").set_attr("stroke-dasharray", "4 3");
+scene.rect(${xb7}, ${yb7}, 36.0, ${hb7}, "#4fa3ff");
+scene.text(${xb7} + 18.0, 412.0, 13.0, "8", "#9fb3c8").set_attr("text-anchor", "middle");
+scene.rect(${xb8} - 4.0, ${yo8}, 44.0, ${ho8}, "none").set_attr("stroke", "#5b7690").set_attr("stroke-dasharray", "4 3");
+scene.rect(${xb8}, ${yb8}, 36.0, ${hb8}, "#4fa3ff");
+scene.text(${xb8} + 18.0, 412.0, 13.0, "9", "#9fb3c8").set_attr("text-anchor", "middle");
+scene.rect(${xb9} - 4.0, ${yo9}, 44.0, ${ho9}, "none").set_attr("stroke", "#5b7690").set_attr("stroke-dasharray", "4 3");
+scene.rect(${xb9}, ${yb9}, 36.0, ${hb9}, "#4fa3ff");
+scene.text(${xb9} + 18.0, 412.0, 13.0, "10", "#9fb3c8").set_attr("text-anchor", "middle");
+scene.path(${tri}, "#ffd166", "#ffd166", 1.0);
+scene.text(${fx}, 470.0, 15.0, ${t_dur}, "#ffd166").set_attr("text-anchor", "middle");
+scene.text(60.0, 130.0, 15.0, ${t_price}, "#e6edf3");
+scene.text(60.0, 152.0, 13.0, "coupons 5 a year, principal 100 in year 10; discount factors from the curve", "#9fb3c8");
+scene.render_png("build/rendered/bond_balance.png", 900, 520, 1);
+end _dsl_
+savedsl(d, "data/bond_balance-draw.dslb");
+r = system ${dsl_cli(d)} --dsl data/bond_balance-draw.dslb;
+if (r.code != 0) { println(r.stderr); }
+assert(r.code == 0);
+copy_file("build/rendered/bond_balance.png", "images/bond_balance.png");
+println("wrote images/bond_balance.png");

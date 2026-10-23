@@ -1,0 +1,53 @@
+# Where does the interest-rate risk sit? DV01 is the change in value for a one basis point rise of the whole curve.
+# A zero-coupon bond of maturity T and value P has DV01 close to P T 1 bp (it grows with T even though P falls); a
+# 1 million swap paying 4% has DV01 close to its annuity (the sum of discounted accrual periods) times 1 bp. lmfinance
+# computes both by bumping the flat 4% curve and the script asserts the closed-form estimates (0.5% for bonds, 5% for
+# swaps, whose compounding conventions differ slightly). lmplot draws the two ladders.
+# Output: images/dv01_ladder.png   (run: lmctl autorun <raw url of this file>)
+mkdir("images");
+mkdir("data");
+sim = _dsl_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
+let c = market.flat_curve(0.04);
+let zrows = "";
+for (k in range(1, 31)) {
+  let z = instrument.zero_bond(100.0, float(k));
+  let price = pricing.bond_npv(z, c);
+  let dv = risk.bond_dv01(z, c);
+  zrows = zrows + str(k) + " " + str(dv) + " " + str(price * float(k) * 0.0001) + " " + str(price) + "\n";
+  lmf.assert_close(dv / (price * float(k) * 0.0001), 1.0, 0.005);
+}
+lmf.save_text("data/dv01_bonds.txt", zrows);
+let srows = "";
+for (k in range(1, 11)) {
+  let s = instrument.swap(1000000.0, 0.04, float(k));
+  let dv = risk.swap_dv01(s, c);
+  let ann = pricing.swap_annuity(s, c) * 0.0001;
+  srows = srows + str(k) + " " + str(dv) + " " + str(ann) + "\n";
+  lmf.assert_close(dv / ann, 1.0, 0.05);
+}
+lmf.save_text("data/dv01_swaps.txt", srows);
+end _dsl_
+savedsl(sim, "data/dv01_ladder-sim.dslb");
+r = system ${dsl_cli(sim)} --dsl data/dv01_ladder-sim.dslb;
+if (r.code != 0) { println(r.stdout); }
+assert(r.code == 0);
+
+draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+plot.png("images/dv01_ladder.png", 1100, 460);
+plot.cmd("set multiplot layout 1,2");
+plot.cmd("set border 3; set tics nomirror; set grid lc rgb '#dddddd'; set key top left box opaque");
+plot.cmd("set key at graph 0.97, 0.5 box opaque");
+plot.cmd("set title 'Zero-coupon bond (face 100): DV01 and value'");
+plot.cmd("set xlabel 'maturity [years]'; set ylabel 'DV01 [per 100 face]'; set y2label 'present value'; set y2tics; set ytics nomirror");
+plot.cmd("plot 'data/dv01_bonds.txt' u 1:3 w l lw 4 lc rgb '#bbbbbb' t 'P T 1bp', 'data/dv01_bonds.txt' u 1:2 w p pt 7 ps 1.2 lc rgb '#d62728' t 'DV01 (curve bump)', 'data/dv01_bonds.txt' u 1:4 axes x1y2 w l lw 2 lc rgb '#1f77b4' t 'value (right axis)'");
+plot.cmd("unset y2label; unset y2tics; set ytics mirror; set key top left box opaque");
+plot.cmd("set title '1 million 4% swap: DV01 against its annuity'");
+plot.cmd("set xlabel 'swap maturity [years]'; set ylabel 'DV01 [currency per bp]'");
+plot.cmd("plot 'data/dv01_swaps.txt' u 1:3 w l lw 4 lc rgb '#bbbbbb' t 'annuity x 1bp', 'data/dv01_swaps.txt' u 1:2 w p pt 7 ps 1.2 lc rgb '#d62728' t 'DV01 (curve bump)'");
+plot.cmd("unset multiplot");
+plot.close();
+end _dsl_
+savedsl(draw, "data/dv01_ladder-draw.dslb");
+r = system ${dsl_cli(draw)} --dsl data/dv01_ladder-draw.dslb;
+assert(r.code == 0);
+println("wrote images/dv01_ladder.png");

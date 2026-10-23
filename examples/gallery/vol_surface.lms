@@ -1,0 +1,54 @@
+# An implied-volatility surface from the Heston stochastic-volatility model (spot 100, rate 3%, initial variance 0.03,
+# long-run variance 0.06, vol-of-vol 0.6, correlation -0.7). lmfinance prices calls semi-analytically on a 17 strike x 12
+# maturity grid and inverts each price to a Black-Scholes implied volatility. Two classic features appear and are asserted:
+# the downside skew (low strikes cost more volatility than high ones) and an upward term structure, because the variance
+# starts below its long-run level. lmplot draws the surface as a heat map.
+# Output: images/vol_surface.png   (run: lmctl autorun <raw url of this file>)
+mkdir("images");
+mkdir("data");
+sim = _dsl_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
+let a = pricing.analytic();
+let bs = model.black_scholes(100.0, 0.03, 0.0, 0.2);
+let h = model.heston(100.0, 0.03, 0.0, 0.03, 2.0, 0.06, 0.6, -0.7);
+let rows = "";
+let vol_short = 0.0;
+let vol_long = 0.0;
+let skew = 0.0;
+for (i in range(0, 17)) {
+  let k = 80.0 + 2.5 * float(i);
+  for (j in range(0, 12)) {
+    let t = 0.15 + 0.17 * float(j);
+    let o = instrument.european_call(k, t);
+    let iv = calibration.implied_vol(o, bs, a, pricing.price(o, h, a).price());
+    rows = rows + str(k) + " " + str(t) + " " + str(100.0 * iv) + "\n";
+    if (i == 8 && j == 0) { vol_short = iv; }
+    if (i == 8 && j == 11) { vol_long = iv; }
+    if (i == 0 && j == 3) { skew = iv; }
+    if (i == 16 && j == 3) { skew = skew - iv; }
+  }
+  rows = rows + "\n";
+}
+lmf.save_text("data/vol_surface.txt", rows);
+lmf.check(vol_long > vol_short + 0.03, "term structure rises toward the long-run variance");
+lmf.check(skew > 0.05, "downside skew at 0.66 years");
+lmf.print("ATM vol " + str(vol_short) + " -> " + str(vol_long) + ", skew " + str(skew));
+end _dsl_
+savedsl(sim, "data/vol_surface-sim.dslb");
+r = system ${dsl_cli(sim)} --dsl data/vol_surface-sim.dslb;
+if (r.code != 0) { println(r.stdout); }
+assert(r.code == 0);
+
+draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+plot.png("images/vol_surface.png", 950, 600);
+plot.cmd("set title 'Heston implied-volatility surface (rho = -0.7): skew in strike, rising term structure'");
+plot.cmd("set xlabel 'strike'; set ylabel 'maturity [years]'; set cblabel 'implied volatility [%]'");
+plot.cmd("set pm3d map interpolate 4,4");
+plot.cmd("set palette defined (0 '#0b1d51', 0.3 '#2a6fb0', 0.55 '#6fc0a8', 0.8 '#f6e05e', 1 '#d62728')");
+plot.cmd("set xrange [80:120]; set yrange [0.15:2.02]");
+plot.cmd("splot 'data/vol_surface.txt' u 1:2:3 w pm3d notitle");
+plot.close();
+end _dsl_
+savedsl(draw, "data/vol_surface-draw.dslb");
+r = system ${dsl_cli(draw)} --dsl data/vol_surface-draw.dslb;
+assert(r.code == 0);
+println("wrote images/vol_surface.png");
