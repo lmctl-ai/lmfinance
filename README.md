@@ -3,6 +3,7 @@
 **QuantLib for lmscript: yield curves, bonds, swaps, options, Greeks, risk and calibration in one static executable.**
 
 [![CI](https://github.com/lmctl-ai/lmfinance/actions/workflows/ci.yml/badge.svg)](https://github.com/lmctl-ai/lmfinance/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/lmctl-ai/lmfinance?label=release)](https://github.com/lmctl-ai/lmfinance/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 ### Options
