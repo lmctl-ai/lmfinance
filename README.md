@@ -94,6 +94,13 @@ cmake -S . -B build && cmake --build build     # Release, -O1 for QuantLib, abou
 Linux builds are fully static; macOS links only system libraries; Windows links the MinGW runtime
 statically. `lmfinance --notices` prints the license texts of everything inside.
 
+## Resource limits
+
+A program may use at most 4096 MiB in total (curves, objects, QuantLib engines and Monte Carlo samples,
+everything the host keeps); beyond that it stops with a run error (exit 3) naming the limit, instead
+of exhausting the machine. Set `LMFINANCE_MAX_MEMORY_MB` to change it, e.g.
+`LMFINANCE_MAX_MEMORY_MB=16384 lmscript big.lms`.
+
 ## License
 
 MIT ([LICENSE](LICENSE)). QuantLib is a modified BSD license and Boost (headers only) is BSL-1.0;

@@ -1,4 +1,5 @@
 #include "finance.hpp"
+#include "memory_budget.hpp"
 
 #include <ql/cashflows/cashflows.hpp>
 #include <ql/exercise.hpp>
@@ -238,6 +239,9 @@ Result price_option(const Clock &c, const Option &o, const Model &m, const Engin
         break;
       case EngineKind::MonteCarlo:
         QL_REQUIRE(!o.american, "the Monte Carlo engine prices European options only");
+        // QuantLib's MC statistics keep every sample (a (value, weight) pair). Fail before simulating when
+        // the vector cannot fit: at the end it holds >= paths pairs, and growing it copied >= paths/2.
+        membudget::require(static_cast<std::size_t>(e.paths) / 2 * 3 * sizeof(std::pair<Real, Real>));
         opt.setPricingEngine(MakeMCEuropeanEngine<PseudoRandom>(p)
                                  .withSteps(1)
                                  .withSamples(static_cast<Size>(e.paths))

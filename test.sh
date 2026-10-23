@@ -178,6 +178,42 @@ else
   ok "gallery examples skipped (no lmplot on PATH, LMFINANCE_TEST_NETWORK unset): docs/images not regenerated"
 fi
 
+# Memory budget: a runaway loop stops with a run error (exit 3, message on stderr and in the JSON
+# line) instead of exhausting the machine. Bumped curves are the biggest host objects a loop can
+# make quickly (~1.3 KB each, kept in the arena). A small budget everywhere, the Monte Carlo
+# sample pre-check, and on Linux the default 4096 MiB under a 6 GiB address-space limit (ulimit
+# only here, never in the host).
+cat >"$WORK/runaway.lms" <<LMS
+p = _dsl_ cli="lmfinance";
+let c = market.flat_curve(0.03);
+let i = 0;
+while (i < 100000000) {
+  let d = c.bumped(0.0001);
+  i = i + 1;
+}
+end _dsl_
+savedsl(p, "$WORK/runaway.dslb");
+LMS
+"$LMSCRIPT" "$WORK/runaway.lms" >/dev/null || fail "runaway.lms compile"
+set +e; out="$(LMFINANCE_MAX_MEMORY_MB=64 "$HOST" --dsl "$WORK/runaway.dslb" 2>"$WORK/runaway.err")"; code=$?; set -e
+[ "$code" = 3 ] || fail "runaway loop under LMFINANCE_MAX_MEMORY_MB=64: exit $code, expected 3 ($out)"
+echo "$out" | grep -q "memory budget exceeded" || fail "runaway loop: JSON lacks the budget message: $out"
+grep -q "LMFINANCE_MAX_MEMORY_MB" "$WORK/runaway.err" || fail "runaway loop: no budget message on stderr"
+printf 'p = _dsl_ cli="lmfinance";\nlet r = pricing.price(instrument.european_call(100.0, 1.0), model.black_scholes(100.0, 0.05, 0.0, 0.2), pricing.monte_carlo(100000000, 7));\nend _dsl_\nsavedsl(p, "%s");\n' \
+  "$WORK/bigmc.dslb" >"$WORK/bigmc.lms"
+"$LMSCRIPT" "$WORK/bigmc.lms" >/dev/null || fail "bigmc.lms compile"
+set +e; out="$(LMFINANCE_MAX_MEMORY_MB=64 "$HOST" --dsl "$WORK/bigmc.dslb" 2>/dev/null)"; code=$?; set -e
+[ "$code" = 3 ] && echo "$out" | grep -q "2289 MiB more requested" || fail "1e8 Monte Carlo paths under LMFINANCE_MAX_MEMORY_MB=64: exit $code ($out)"
+set +e; LMFINANCE_MAX_MEMORY_MB=-5 "$HOST" --dsl "$WORK/runaway.dslb" >/dev/null 2>"$WORK/badenv.err"; code=$?; set -e
+[ "$code" = 2 ] && grep -q "positive whole number" "$WORK/badenv.err" || fail "bad LMFINANCE_MAX_MEMORY_MB: exit $code"
+if [ "$UNAME_S" = Linux ]; then
+  set +e; out="$(ulimit -v 6291456; "$HOST" --dsl "$WORK/runaway.dslb" 2>/dev/null)"; code=$?; set -e
+  [ "$code" = 3 ] && echo "$out" | grep -q "limit 4096 MiB" || fail "runaway loop with the default budget under ulimit -v 6 GiB: exit $code ($out)"
+  ok "memory budget: runaway loop stops at 64 MiB and at the default 4096 MiB (under ulimit -v 6 GiB), Monte Carlo pre-check"
+else
+  ok "memory budget: runaway loop and Monte Carlo pre-check stop at LMFINANCE_MAX_MEMORY_MB=64 (default-budget run is Linux-only)"
+fi
+
 set +e; "$HOST" --dsl "$WORK/does-not-exist.dslb" >/dev/null 2>&1; code=$?; set -e
 [ "$code" = 3 ] || fail "missing bytecode exit code $code, expected 3"
 set +e; "$HOST" >/dev/null 2>&1; code=$?; set -e

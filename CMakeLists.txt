@@ -68,7 +68,7 @@ foreach(prop INTERFACE_INCLUDE_DIRECTORIES INTERFACE_SYSTEM_INCLUDE_DIRECTORIES)
 endforeach()
 target_include_directories(ql_library SYSTEM PRIVATE third_party/boost)
 
-add_executable(lmfinance cpp/main.cpp cpp/finance.cpp)
+add_executable(lmfinance cpp/main.cpp cpp/finance.cpp cpp/memory_budget.cpp)
 target_compile_definitions(lmfinance PRIVATE LMFINANCE_VERSION="${PROJECT_VERSION}")
 target_include_directories(lmfinance PRIVATE cpp "${GEN}")
 target_include_directories(lmfinance SYSTEM PRIVATE third_party/boost)

@@ -15,6 +15,7 @@
 
 #include "dslvm.hpp"
 #include "finance.hpp"
+#include "memory_budget.hpp"
 #include "notices_embedded.hpp"
 #include "schema_embedded.hpp"
 
@@ -321,7 +322,9 @@ void register_host(dslvm::Registry &r, Host &h) {
   method(r, "LmfApi", "version", {}, "string", [](void *, Args &) { return Value::string("lmfinance " LMFINANCE_VERSION); });
 }
 
-const char *usage = "usage: lmfinance --version | --notices | --dsl-schema [--json] | --dsl-signatures | [--dry-run] --dsl FILE [FILE ...]\n";
+const char *usage = "usage: lmfinance --version | --notices | --dsl-schema [--json] | --dsl-signatures | [--dry-run] --dsl FILE [FILE ...]\n"
+                    "environment: LMFINANCE_MAX_MEMORY_MB  total memory budget in MiB (default 4096); a program that needs\n"
+                    "             more stops with a run error (exit 3) instead of allocating\n";
 }  // namespace
 
 int main(int argc, char **argv) {
@@ -353,6 +356,7 @@ int main(int argc, char **argv) {
   if (argc <= first || std::string(argv[first - 1]) != "--dsl") { std::cerr << usage; return 2; }
   for (int i = first; i < argc; i++)
     if (std::string(argv[i]).empty() || std::string(argv[i]).rfind("--", 0) == 0) { std::cerr << usage; return 2; }
+  if (!membudget::configure("lmfinance", "LMFINANCE_MAX_MEMORY_MB")) { std::cerr << usage; return 2; }
   const std::string schema(reinterpret_cast<const char *>(lmfinance::embedded_schema), lmfinance::embedded_schema_size);
   dslvm::Context context;
   for (const char *n : {"market", "instrument", "model", "pricing", "risk", "calibration", "lmf"}) context.set(n, &host);
@@ -360,11 +364,13 @@ int main(int argc, char **argv) {
   for (int i = first; i < argc; i++) {
     try { programs.push_back(dslvm::Program::load(dslvm::read_file(argv[i]), schema, reg)); }
     catch (const dslvm::Error &e) { return dslvm::report_error("load", e); }
+    catch (const std::exception &e) { return dslvm::report_error("load", dslvm::Error(e.what())); }
   }
   if (dry) { dslvm::report_ok(); return 0; }
   for (const auto &p : programs) {
     try { p.run(context, reg); }
     catch (const dslvm::Error &e) { return dslvm::report_error("run", e); }
+    catch (const std::exception &e) { return dslvm::report_error("run", dslvm::Error(e.what())); }  // budget in the VM
     dslvm::report_ok();
   }
   return 0;
