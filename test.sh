@@ -42,6 +42,10 @@ ok "--dsl-schema --json prints byte-identical embedded schema bytes"
 diff -u <("$LMSCRIPT" --dsl-signatures schema/lmfinance.dsl.json) <("$HOST" --dsl-signatures) || fail "host/compiler signatures differ"
 ok "host registry matches compiler signatures"
 "$HOST" --notices | grep -q "QuantLib" || fail "--notices missing third-party text"
+"$HOST" --notices >"$WORK/notices.txt" || fail "--notices"
+for n in "Makoto Matsumoto" "University of Chicago" "Boost C++ Libraries"; do
+  grep -q "$n" "$WORK/notices.txt" || fail "--notices missing the $n notice"
+done
 ok "--notices prints the third-party license texts"
 
 case "$UNAME_S" in
