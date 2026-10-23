@@ -17,11 +17,12 @@ assert(r.code == 0);
 
 draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
 plot.png("images/yield_curve.png", 900, 600);
-plot.cmd("set title 'Bootstrapped curve (lmfinance QuantLib, drawn by lmplot)'");
+plot.cmd("set border 3; set tics nomirror; set grid lc rgb '#dddddd'");
+plot.cmd("set title 'Bootstrapped curve: zero rates and one-period forward rates'");
 plot.cmd("set xlabel 'years'");
 plot.cmd("set ylabel 'rate'");
-plot.cmd("set key bottom right");
-plot.cmd("plot 'data/yield_curve.csv' using 1:2 with lines lw 2 title 'zero', '' using 1:4 with lines lw 2 title 'forward'");
+plot.cmd("set key bottom right box opaque");
+plot.cmd("plot 'data/yield_curve.csv' using 1:2 with lines lw 3 lc rgb '#1f77b4' title 'zero rate', '' using 1:4 with lines lw 3 lc rgb '#d62728' title 'forward rate'");
 plot.close();
 end _dsl_
 savedsl(draw, "data/yield_curve-draw.dslb");
