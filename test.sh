@@ -113,7 +113,24 @@ expect_error bondmonths 'let b = instrument.bond(100.0, 0.05, 2.04, 1); let y = 
 expect_error fewquotes 'let f = calibration.heston(100.0, 0.03, 0.0).quote(100.0, 1.0, 0.2); let m = f.fit();' "at least 5 quotes"
 expect_error assertfail 'lmf.assert_close(1.0, 2.0, 0.1);' "assert_close failed"
 expect_error checkfail 'lmf.check(1.0 > 2.0, "one is not greater than two");' "check failed: one is not greater"
-ok "errors stop the program with exit 3 and a clear message (16 cases)"
+expect_error nanrate 'let m = model.black_scholes(100.0, sqrt(-1.0), 0.0, 0.2);' "argument 2 must be finite"
+expect_error nancurve 'let c = market.flat_curve(sqrt(-1.0));' "must be finite"
+expect_error subday 'let r = pricing.price(instrument.european_call(50.0, 0.001), model.black_scholes(100.0, 0.05, 0.0, 0.2), pricing.analytic());' "shorter than one day"
+expect_error badguess 'let f = calibration.heston(100.0, 0.03, 0.0).guess(0.04, 1.0, 0.04, 0.5, 3.0);' "rho must be inside"
+ok "errors stop the program with exit 3 and a clear message (20 cases)"
+
+# --dry-run loads and verifies bytecode but runs nothing (no output files).
+cat >"$WORK/dry.lms" <<LMS
+p = _dsl_ cli="lmfinance";
+lmf.save_text("$WORK/dry.txt", "ran");
+end _dsl_
+savedsl(p, "$WORK/dry.dslb");
+LMS
+"$LMSCRIPT" "$WORK/dry.lms" >/dev/null 2>&1 || fail "dry-run program compile"
+"$HOST" --dry-run --dsl "$WORK/dry.dslb" | grep -q '"ok": true' || fail "dry run did not report ok"
+[ ! -e "$WORK/dry.txt" ] || fail "--dry-run executed the program"
+"$HOST" --dsl "$WORK/dry.dslb" >/dev/null && [ -e "$WORK/dry.txt" ] || fail "program did not run without --dry-run"
+ok "--dry-run verifies without running"
 
 # README gallery: every linked example and image exists, images are valid PNG/GIF within the size limits.
 magic_ok() { # file

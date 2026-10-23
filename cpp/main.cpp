@@ -57,6 +57,9 @@ void check_args(const char *who, const std::vector<std::string> &params, Args &a
               : want == "bool" ? v.kind == Value::BOOL
               : v.kind == Value::OBJ && v.type == want && v.obj;
     if (!ok) throw dslvm::Error(std::string(who) + " argument " + std::to_string(i + 1) + " must be " + want);
+    // No lmfinance input is meaningful as NaN or infinity; QuantLib would propagate it into silent NaN prices.
+    if (want == "float" && !std::isfinite(v.f))
+      throw dslvm::Error(std::string(who) + " argument " + std::to_string(i + 1) + " must be finite");
   }
 }
 
@@ -281,6 +284,8 @@ void register_host(dslvm::Registry &r, Host &h) {
   });
   method(r, "HestonFit", "guess", {"float", "float", "float", "float", "float"}, "HestonFit", [](void *p, Args &a) {
     HestonFit &f = self<HestonFit>(p);
+    need(a[0].f > 0 && a[1].f > 0 && a[2].f > 0 && a[3].f > 0, "HestonFit.guess: v0, kappa, theta and sigma must be positive");
+    need(a[4].f > -1 && a[4].f < 1, "HestonFit.guess: rho must be inside (-1, 1)");
     f.v0 = a[0].f; f.kappa = a[1].f; f.theta = a[2].f; f.sigma = a[3].f; f.rho = a[4].f; return Value::object("HestonFit", p);
   });
   method(r, "HestonFit", "fit", {}, "Model", [&h](void *p, Args &) {
@@ -308,6 +313,8 @@ void register_host(dslvm::Registry &r, Host &h) {
     std::ofstream f(a[0].s, std::ios::binary);
     if (!f) throw dslvm::Error("lmf.save_text: cannot write " + a[0].s);
     f << a[1].s;
+    f.flush();
+    if (!f) throw dslvm::Error("lmf.save_text: write failed for " + a[0].s);
     return Value::none();
   });
   method(r, "LmfApi", "print", {"string"}, "void", [](void *, Args &a) { std::cout << a[0].s << std::endl; return Value::none(); });
@@ -341,7 +348,8 @@ int main(int argc, char **argv) {
   }
   if (argc == 2 && a1 == "--dsl-signatures") { for (const auto &s : reg.signatures()) std::cout << s << "\n"; return 0; }
   int first = 2;
-  if (argc >= 2 && a1 == "--dry-run") first = 3;  // accepted for symmetry: nothing here has side effects beyond files
+  const bool dry = argc >= 2 && a1 == "--dry-run";  // load and verify the bytecode, run nothing
+  if (dry) first = 3;
   if (argc <= first || std::string(argv[first - 1]) != "--dsl") { std::cerr << usage; return 2; }
   for (int i = first; i < argc; i++)
     if (std::string(argv[i]).empty() || std::string(argv[i]).rfind("--", 0) == 0) { std::cerr << usage; return 2; }
@@ -353,6 +361,7 @@ int main(int argc, char **argv) {
     try { programs.push_back(dslvm::Program::load(dslvm::read_file(argv[i]), schema, reg)); }
     catch (const dslvm::Error &e) { return dslvm::report_error("load", e); }
   }
+  if (dry) { dslvm::report_ok(); return 0; }
   for (const auto &p : programs) {
     try { p.run(context, reg); }
     catch (const dslvm::Error &e) { return dslvm::report_error("run", e); }

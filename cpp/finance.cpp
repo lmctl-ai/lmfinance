@@ -53,7 +53,10 @@ DayCounter bond_dc() { return Thirty360(Thirty360::BondBasis); }
 void activate(const Clock &c) { Settings::instance().evaluationDate() = c.today; }
 Date years_ahead(const Clock &c, double years) {
   if (!(years > 0) || years > 100) QL_FAIL("maturity must be between 0 and 100 years, got " << years);
-  return c.today + static_cast<Integer>(std::llround(years * 365.0));
+  // Dates are whole days: a maturity that rounds to the evaluation date would price as already expired (zero).
+  const auto days = std::llround(years * 365.0);
+  if (days < 1) QL_FAIL("maturity " << years << " years is shorter than one day (1/365 year)");
+  return c.today + static_cast<Integer>(days);
 }
 Handle<YieldTermStructure> flat(const Clock &c, double r) {
   return Handle<YieldTermStructure>(ext::make_shared<FlatForward>(c.today, r, act365()));
@@ -193,6 +196,8 @@ void curve_save_csv(const Curve &c, const std::string &path, double tmax, int n)
     std::snprintf(b, sizeof b, "%.10g %.10g %.10g %.10g\n", t, curve_zero(c, t), curve_discount(c, t), curve_forward(c, t - tmax / n / 2, t + tmax / n / 2));
     f << b;
   }
+  f.flush();
+  QL_REQUIRE(f, "write failed for " << path);
 }
 
 // ---------------------------------------------------------------- options
@@ -275,7 +280,7 @@ double bumped_gamma(const Clock &c, const Option &o, const Model &m, const Engin
 }
 double bumped_vega(const Clock &c, const Option &o, const Model &m, const Engine &e) {
   need_bs(m, "vega");
-  double h = 0.001;
+  double h = std::min(0.001, 0.5 * m.vol);  // keep the down bump at a positive volatility
   Model up = m, dn = m;
   up.vol += h; dn.vol -= h;
   return (px(c, o, up, e) - px(c, o, dn, e)) / (2 * h);
@@ -306,6 +311,8 @@ void save_profile(const Clock &c, const Option &o, const Model &m, const Engine 
                   bumped_gamma(c, o, mm, e));
     f << b;
   }
+  f.flush();
+  QL_REQUIRE(f, "write failed for " << path);
 }
 
 // ---------------------------------------------------------------- bonds
