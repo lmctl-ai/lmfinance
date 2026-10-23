@@ -26,7 +26,7 @@
 
 | ![barrier_options](docs/images/barrier_options.png) | ![asian_options](docs/images/asian_options.png) |
 | --- | --- |
-| Up-and-out calls: in + out = vanilla, and a knock-out call whose vega turns negative (needs lmfinance 0.1.2).<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/barrier_options.lms` | Asian options: averaging makes them cheaper, geometric in closed form, arithmetic by Monte Carlo (needs lmfinance 0.1.2).<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/asian_options.lms` |
+| Up-and-out calls: in + out = vanilla, and a knock-out call whose vega turns negative.<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/barrier_options.lms` | Asian options: averaging makes them cheaper, geometric in closed form, arithmetic by Monte Carlo.<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/asian_options.lms` |
 
 ### Volatility
 
@@ -58,7 +58,7 @@
 
 | ![caps_floors](docs/images/caps_floors.png) | ![swaption_grid](docs/images/swaption_grid.png) |
 | --- | --- |
-| A 5-year cap and floor against the strike: equal at the ATM rate, cap - floor is a swap (needs lmfinance 0.1.2).<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/caps_floors.lms` | ATM payer swaptions over expiry x tenor, and the 1Y x 5Y swaption against the strike (needs lmfinance 0.1.2).<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/swaption_grid.lms` |
+| A 5-year cap and floor against the strike: equal at the ATM rate, cap - floor is a swap.<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/caps_floors.lms` | ATM payer swaptions over expiry x tenor, and the 1Y x 5Y swaption against the strike.<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/swaption_grid.lms` |
 
 ### Numerics and risk
 
@@ -68,13 +68,13 @@
 
 | ![var_tail](docs/images/var_tail.png) | ![mc_var](docs/images/mc_var.png) |
 | --- | --- |
-| 99% VaR and expected shortfall of a position.<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/var_tail.lms` | Monte Carlo VaR by full revaluation: lmnum normals, lmfinance prices, `risk.series` quantiles (needs lmfinance 0.1.2).<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/mc_var.lms` |
+| 99% VaR and expected shortfall of a position.<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/var_tail.lms` | Monte Carlo VaR by full revaluation: lmnum normals, lmfinance prices, `risk.series` quantiles.<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/mc_var.lms` |
 
 | ![portfolio_waterfall](docs/images/portfolio_waterfall.png) | |
 | --- | --- |
 | P/L attribution of an option book: delta, gamma, vega, rho, theta and the unexplained remainder.<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/portfolio_waterfall.lms` | |
 
-Each command runs the example from any empty directory: lmfinance computes, [lmplot](https://github.com/lmctl-ai/lmplot) or [lmdraw](https://github.com/lmctl-ai/lmdraw) draws, and the picture lands in `images/`. `examples/render-all.sh` regenerates `docs/images/` from a checkout. Five examples (`barrier_options`, `asian_options`, `caps_floors`, `swaption_grid`, `mc_var`) use the exotics, cap/floor, swaption and `risk.series` API that is in the source but not yet in a tagged release: they need lmfinance 0.1.2 (`@latest` is 0.1.1 until it is tagged; build from source or run them with the repo's `build/lmfinance` on `PATH`).
+Each command runs the example from any empty directory: lmfinance computes, [lmplot](https://github.com/lmctl-ai/lmplot) or [lmdraw](https://github.com/lmctl-ai/lmdraw) draws, and the picture lands in `images/`. `examples/render-all.sh` regenerates `docs/images/` from a checkout.
 
 **Quick start:** `npm i -g @lmctl-ai/lmctl`, then paste any `lmctl autorun` line above.
 
@@ -150,11 +150,11 @@ Combine it with other hosts in one script: [examples/gallery/](examples/gallery)
 | [gallery/tree_convergence.lms](examples/gallery/tree_convergence.lms) | crr/jr/tian/lr for 5..400 steps; CRR brackets the closed form on odd/even steps, Leisen-Reimer within 1e-5 at 201 steps | `lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/tree_convergence.lms` |
 | [gallery/exercise_boundary.lms](examples/gallery/exercise_boundary.lms) | bisection on CRR 400 for the critical spot S*(T): below K, falling with T, above the perpetual limit 71.43 | `lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/exercise_boundary.lms` |
 | [gallery/heston_calibration.lms](examples/gallery/heston_calibration.lms) | 36 quotes from a known Heston model, fit from a wrong guess: rms error < 1e-4, rho and v0 recovered; non-convergence is an error since 0.1.2 | `lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/heston_calibration.lms` |
-| [gallery/barrier_options.lms](examples/gallery/barrier_options.lms) | (0.1.2) in + out = vanilla to 1e-6 for up and down barriers; the up-and-out call loses half its peak value at high vol | `lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/barrier_options.lms` |
-| [gallery/asian_options.lms](examples/gallery/asian_options.lms) | (0.1.2) one fixing = vanilla; geometric closed form decreasing in fixings; arithmetic MC with control variate, stderr < 0.01 | `lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/asian_options.lms` |
-| [gallery/caps_floors.lms](examples/gallery/caps_floors.lms) | (0.1.2) cap = floor at `capfloor_atm_rate`, cap - floor linear in the strike, `capfloor_implied_vol` returns 30% at every strike | `lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/caps_floors.lms` |
-| [gallery/swaption_grid.lms](examples/gallery/swaption_grid.lms) | (0.1.2) ATM payer = receiver on a 4 x 4 grid, payer - receiver = annuity (fwd - K), implied vol round trip | `lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/swaption_grid.lms` |
-| [gallery/mc_var.lms](examples/gallery/mc_var.lms) | (0.1.2) lmnum draws correlated normals, lmfinance reprices a book in 4000 scenarios, `risk.series` gives VaR and ES; compared with `var_normal` | `lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/mc_var.lms` |
+| [gallery/barrier_options.lms](examples/gallery/barrier_options.lms) | in + out = vanilla to 1e-6 for up and down barriers; the up-and-out call loses half its peak value at high vol | `lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/barrier_options.lms` |
+| [gallery/asian_options.lms](examples/gallery/asian_options.lms) | one fixing = vanilla; geometric closed form decreasing in fixings; arithmetic MC with control variate, stderr < 0.01 | `lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/asian_options.lms` |
+| [gallery/caps_floors.lms](examples/gallery/caps_floors.lms) | cap = floor at `capfloor_atm_rate`, cap - floor linear in the strike, `capfloor_implied_vol` returns 30% at every strike | `lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/caps_floors.lms` |
+| [gallery/swaption_grid.lms](examples/gallery/swaption_grid.lms) | ATM payer = receiver on a 4 x 4 grid, payer - receiver = annuity (fwd - K), implied vol round trip | `lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/swaption_grid.lms` |
+| [gallery/mc_var.lms](examples/gallery/mc_var.lms) | lmnum draws correlated normals, lmfinance reprices a book in 4000 scenarios, `risk.series` gives VaR and ES; compared with `var_normal` | `lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/mc_var.lms` |
 | [gallery/portfolio_waterfall.lms](examples/gallery/portfolio_waterfall.lms) | Greek attribution of the P/L after spot +6, vol +3, rates +25bp, 10 days: the unexplained remainder is under 6% of the total | `lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/portfolio_waterfall.lms` |
 | [gallery/swap_cashflows.lms](examples/gallery/swap_cashflows.lms) | lmdraw cash-flow diagram; the two legs rebuilt from `Curve.forward` and `discount` match `swap_npv` to 0.1% of notional | `lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/gallery/swap_cashflows.lms` |
 
