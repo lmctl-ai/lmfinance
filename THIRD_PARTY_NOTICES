@@ -2,7 +2,7 @@ Third-party notices for lmfinance
 =================================
 
 lmfinance's own code (cpp/, schema/, scripts/, examples/, tests/; including the vendored `cpp/dslvm.hpp`
-runtime from the cpp-dsl-sdk project) is Copyright (c) 2026 Lattice Systems LLC, MIT license (see
+runtime from the lmcode-cpp project) is Copyright (c) 2026 Lattice Systems LLC, MIT license (see
 LICENSE). `lmfinance --notices` prints this file.
 
 QuantLib
