@@ -1,6 +1,6 @@
 # lmfinance
 
-**QuantLib for lmscript: yield curves, bonds, swaps, caps and swaptions, vanilla and exotic options, Greeks, risk and calibration in one static executable.**
+**QuantLib for lmscript: yield curves, bonds, swaps, caps and swaptions, vanilla and exotic options, Greeks, risk and calibration in one executable.**
 
 [![CI](https://github.com/lmctl-ai/lmfinance/actions/workflows/ci.yml/badge.svg)](https://github.com/lmctl-ai/lmfinance/actions/workflows/ci.yml)
 [![Latest release](https://img.shields.io/github/v/release/lmctl-ai/lmfinance?label=release)](https://github.com/lmctl-ai/lmfinance/releases)
@@ -77,10 +77,12 @@
 Each command runs the example from any empty directory: lmfinance computes, [lmplot](https://github.com/lmctl-ai/lmplot) or [lmdraw](https://github.com/lmctl-ai/lmdraw) draws, and the picture lands in `images/`. `examples/render-all.sh` regenerates `docs/images/` from a checkout.
 
 **Quick start:** `npm i -g @lmctl-ai/lmctl`, then paste any `lmctl autorun` line above.
+Linux downloads require **dynamic glibc >= 2.35** (Ubuntu 22.04 or newer).
 
 It is a scripting host,
 not a command-line tool: write an [lmscript](https://lmctl.com/tools/lmscript/skill.html) `_dsl_`
-block, compile it, run it with `lmfinance --dsl`. No Python, no Boost libraries, no shared libraries.
+block, compile it, run it with `lmfinance --dsl`. No Python or Boost shared libraries are needed. Linux uses system glibc;
+QuantLib and the GCC C++ runtimes are static.
 
 ```
 # bs.lms: Black-Scholes call S=100 K=100 r=5% vol=20% T=1 is worth 10.4506
@@ -172,8 +174,12 @@ cmake -S . -B build && cmake --build build     # Release, -O1 for QuantLib, abou
 ./test.sh                       # needs lmscript on PATH
 ```
 
-Linux builds are fully static; macOS links only system libraries; Windows links the MinGW runtime
-statically. `lmfinance --notices` prints the license texts of everything inside.
+Linux uses dynamic glibc >= 2.35, with QuantLib and the GCC C++ runtimes static.
+macOS links only system libraries; Windows links the MinGW runtime statically. `lmfinance --notices` prints the license texts of everything inside.
+
+`lmfinance --version` remains exactly `lmfinance X.Y.Z` for installer compatibility.
+The Linux runtime baseline applies to both Linux release assets; no relink-object
+archive or third-party shared libraries are required.
 
 ## Resource limits
 

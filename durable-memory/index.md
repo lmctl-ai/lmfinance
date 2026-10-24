@@ -9,3 +9,5 @@
 - `07-examples.md` — the example programs and what they taught.
 - `08-open-items.md` — what is not done.
 - `09-resource-limits.md` — the total memory budget (`LMFINANCE_MAX_MEMORY_MB`) and how it is counted.
+
+- `10-linux-glibc.md` — system-glibc baseline, static dependency policy and release verification.

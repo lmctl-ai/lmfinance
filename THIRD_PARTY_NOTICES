@@ -388,3 +388,15 @@ SHALL THE COPYRIGHT HOLDERS OR ANYONE DISTRIBUTING THE SOFTWARE BE LIABLE
 FOR ANY DAMAGES OR OTHER LIABILITY, WHETHER IN CONTRACT, TORT OR OTHERWISE,
 ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
+
+System runtime libraries
+------------------------
+Linux binaries are dynamically linked to the system glibc (LGPL-2.1 or later),
+with a published baseline of dynamic glibc >= 2.35 (Ubuntu 22.04).
+Source and license: https://www.gnu.org/software/libc/ and
+https://www.gnu.org/licenses/lgpl-2.1.html
+
+QuantLib and all other third-party code are static. GNU builds statically link
+libstdc++ and libgcc under GPL-3.0-or-later with GCC Runtime Library Exception 3.1.
+https://www.gnu.org/licenses/gpl-3.0.html
+https://www.gnu.org/licenses/gcc-exception-3.1.html

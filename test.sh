@@ -49,7 +49,10 @@ done
 ok "--notices prints the third-party license texts"
 
 case "$UNAME_S" in
-  Linux) if ldd "$HOST" >/dev/null 2>&1; then fail "executable is dynamically linked"; fi; ok "executable is fully static (no dynamic loader)";;
+  Linux)
+    python3 scripts/test-linux-linkage.py || fail "Linux linkage checker regressions"
+    python3 scripts/check-linux-linkage.py "$HOST" || fail "Linux dependency allowlist or glibc baseline"
+    ok "only dynamic system glibc is needed; readelf audits the glibc 2.35 ABI baseline";;
   Darwin) bad="$(otool -L "$HOST" | tail -n +2 | grep -v -E '/usr/lib/(libSystem|libc\+\+|libresolv)' || true)"
           [ -z "$bad" ] || fail "non-system dylib dependencies: $bad"; ok "only system libraries linked";;
   MINGW*|MSYS*|CYGWIN*)

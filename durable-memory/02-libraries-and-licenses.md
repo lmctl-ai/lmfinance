@@ -6,7 +6,8 @@
 | Boost | 1.89.0 headers | BSL-1.0 | release tarball pinned by sha256; only the `boost/` header tree is extracted; nothing linked |
 | cpp-dsl-sdk | `dslvm.hpp`, pinned in `sdk.lock` | MIT | vendored single header |
 
-No GPL/AGPL/LGPL code anywhere. `lmfinance --notices` prints THIRD_PARTY_NOTICES (embedded).
+Scientific dependencies use the permissive licenses above. Linux uses dynamic system glibc
+(LGPL-2.1 or later); GNU builds keep libstdc++/libgcc static with the GCC Runtime Library Exception. `lmfinance --notices` prints THIRD_PARTY_NOTICES (embedded).
 
 ## deps.lock
 
