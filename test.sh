@@ -39,10 +39,21 @@ ok "schema matches the registrations in cpp/main.cpp"
 "$HOST" --dsl-schema --json >"$WORK/schema.json" || fail "embedded schema print"
 cmp -s "$WORK/schema.json" schema/lmfinance.dsl.json || fail "embedded schema differs from schema/lmfinance.dsl.json"
 ok "--dsl-schema --json prints byte-identical embedded schema bytes"
-WITHOUT_STD=""
-"$LMSCRIPT" --help 2>&1 | grep -q -- '--without-std' && WITHOUT_STD="--without-std"
-diff -u <("$LMSCRIPT" --dsl-signatures schema/lmfinance.dsl.json $WITHOUT_STD) <("$HOST" --dsl-signatures) || fail "host/compiler signatures differ"
-ok "host registry matches compiler signatures"
+# The registry includes the vendored standard library (72 built-in signatures); the host schema declares only its own members.
+"$HOST" --dsl-signatures >"$WORK/registry-signatures.txt"
+"$LMSCRIPT" --dsl-signatures cpp/std/lmcode-std.schema.json >"$WORK/standard-signatures.txt"
+python3 - "$WORK" <<'PYHOST' || fail "standard signature surface differs from the vendored std schema"
+from pathlib import Path
+import sys
+work = Path(sys.argv[1])
+registry = set((work / "registry-signatures.txt").read_text().splitlines())
+standard = set((work / "standard-signatures.txt").read_text().splitlines())
+assert len(standard) == 72, len(standard)
+assert standard <= registry, "registry lacks standard signatures"
+(work / "host-signatures.txt").write_text("".join(line + "\n" for line in sorted(registry - standard)))
+PYHOST
+diff -u <("$LMSCRIPT" --dsl-signatures schema/lmfinance.dsl.json --without-std) "$WORK/host-signatures.txt" || fail "host/compiler signatures differ"
+ok "host registry matches compiler signatures (72 standard built-ins excluded)"
 "$HOST" --notices | grep -q "QuantLib" || fail "--notices missing third-party text"
 "$HOST" --notices >"$WORK/notices.txt" || fail "--notices"
 for n in "Makoto Matsumoto" "University of Chicago" "Boost C++ Libraries"; do
@@ -91,6 +102,26 @@ done
 for f in build/examples/*.csv; do echo "$(sha "$f") $f"; done >"$WORK/after.txt"
 cmp -s "$WORK/before.txt" "$WORK/after.txt" || fail "result files differ on rerun"
 ok "all $(wc -l <"$WORK/after.txt" | tr -d ' ') result files are byte-identical on rerun"
+
+# Standard library built into lmscript 0.2.420: one function from each family runs on this host (file I/O in $WORK).
+cat >"$WORK/std.lms" <<LMS
+p = _dsl_ cli="lmfinance";
+lmf.print("string=" + str_upper("abc") + ":" + str(str_len("hello")));
+lmf.print("math=" + str(math_max(3, 9)));
+let xs = int_list().add(4).add(7);
+lmf.print("collections=" + str(xs.len()) + ":" + str(xs.at(1)));
+lmf.print("split=" + str_split("a,b,c", ",").join("-"));
+let path = "$WORK/std.txt";
+file_write(path, "line one\n");
+file_append(path, "line two\n");
+lmf.print("file=" + str(file_exists(path)) + ":" + str(str_len(file_read(path))));
+end _dsl_
+savedsl(p, "$WORK/std.dslb");
+LMS
+"$LMSCRIPT" "$WORK/std.lms" >/dev/null 2>"$WORK/std.cerr" || { cat "$WORK/std.cerr" >&2; fail "std program compile"; }
+"$HOST" --dsl "$WORK/std.dslb" 2>"$WORK/std.err" | grep -v '^{"ok"' >"$WORK/std.out" || fail "std program run: $(cat "$WORK/std.err")"
+printf '%s\n' "string=ABC:5" "math=9" "collections=2:7" "split=a-b-c" "file=true:18" | cmp -s - "$WORK/std.out" || { cat "$WORK/std.out" >&2; fail "std program output differs"; }
+ok "standard library runs end to end on the host: string, math, collections, file"
 
 # Error paths: each snippet must fail the run with exit 3 and a message naming the problem.
 printf '1 2 3\n' >"$WORK/pnl.csv"
