@@ -50,7 +50,7 @@ registry = set((work / "registry-signatures.txt").read_text().splitlines())
 standard = set((work / "standard-signatures.txt").read_text().splitlines())
 assert len(standard) == 72, len(standard)
 assert standard <= registry, "registry lacks standard signatures"
-(work / "host-signatures.txt").write_text("".join(line + "\n" for line in sorted(registry - standard)))
+(work / "host-signatures.txt").write_bytes("".join(line + "\n" for line in sorted(registry - standard)).encode("utf-8"))
 PYHOST
 diff -u <("$LMSCRIPT" --dsl-signatures schema/lmfinance.dsl.json --without-std) "$WORK/host-signatures.txt" || fail "host/compiler signatures differ"
 ok "host registry matches compiler signatures (72 standard built-ins excluded)"
@@ -119,7 +119,14 @@ end _dsl_
 savedsl(p, "$WORK/std.dslb");
 LMS
 "$LMSCRIPT" "$WORK/std.lms" >/dev/null 2>"$WORK/std.cerr" || { cat "$WORK/std.cerr" >&2; fail "std program compile"; }
-"$HOST" --dsl "$WORK/std.dslb" 2>"$WORK/std.err" | grep -v '^{"ok"' >"$WORK/std.out" || fail "std program run: $(cat "$WORK/std.err")"
+"$HOST" --dsl "$WORK/std.dslb" >"$WORK/std.raw" 2>"$WORK/std.err" || fail "std program run: $(cat "$WORK/std.err")"
+python3 - "$WORK/std.raw" <<'PYRUN' || fail "std program emitted unexpected output"
+from pathlib import Path
+import sys
+lines = Path(sys.argv[1]).read_text(encoding="utf-8").splitlines()
+assert lines[-1] == '{"ok": true, "result": null}', lines
+Path(sys.argv[1]).write_text("\n".join(lines[:-1]) + ("\n" if len(lines) > 1 else ""), encoding="utf-8")
+PYRUN
 printf '%s\n' "string=ABC:5" "math=9" "collections=2:7" "split=a-b-c" "file=true:18" | cmp -s - "$WORK/std.out" || { cat "$WORK/std.out" >&2; fail "std program output differs"; }
 ok "standard library runs end to end on the host: string, math, collections, file"
 
