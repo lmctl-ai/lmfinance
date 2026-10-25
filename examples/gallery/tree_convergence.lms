@@ -4,7 +4,7 @@
 # below 1e-5 while CRR at 200 is still 1e-2 (asserted). Left: prices; right: |error| on log axes. images/tree_convergence.png.
 mkdir("images");
 mkdir("data");
-sim = _dsl_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
+sim = _lmcode_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
 let m = model.black_scholes(100.0, 0.05, 0.0, 0.2);
 let call = instrument.european_call(100.0, 1.0);
 let exact = pricing.price(call, m, pricing.analytic()).price();
@@ -29,13 +29,13 @@ lmf.check(e_lr < 0.00001, "Leisen-Reimer at 201 steps is within 1e-5");
 let odd = pricing.price(call, m, pricing.binomial_tree("crr", 51)).price();
 let even = pricing.price(call, m, pricing.binomial_tree("crr", 50)).price();
 lmf.check((odd - exact) * (even - exact) < 0.0, "consecutive CRR step counts bracket the closed form");
-end _dsl_
+end _lmcode_
 savedsl(sim, "data/tree_convergence-sim.dslb");
 r = system ${dsl_cli(sim)} --dsl data/tree_convergence-sim.dslb;
 if (r.code != 0) { println(r.stdout); }
 assert(r.code == 0);
 
-draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+draw = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
 plot.png("images/tree_convergence.png", 1000, 480);
 plot.cmd("set multiplot layout 1,2 title 'Binomial trees against Black-Scholes 10.4506 (lmfinance): odd/even oscillation and the Leisen-Reimer shortcut' font ',12'");
 plot.cmd("set border 3; set tics nomirror; set grid lc rgb '#dddddd'; set xlabel 'steps'; set ylabel 'call price'; set xrange [5:100]; set yrange [10.3:10.6]");
@@ -45,7 +45,7 @@ plot.cmd("set logscale xy; set format y '10^{%L}'; set xrange [5:400]; set yrang
 plot.cmd("plot 'data/tree_convergence.csv' u 1:(abs($2-$6)) w lp pt 7 ps 0.5 lw 1.2 lc rgb '#1f77b4' t 'CRR', '' u 1:(abs($3-$6)) w lp pt 5 ps 0.5 lw 1.2 lc rgb '#ff7f0e' t 'Jarrow-Rudd', '' u 1:(abs($4-$6)) w lp pt 9 ps 0.5 lw 1.2 lc rgb '#2ca02c' t 'Tian', '' u 1:(abs($5-$6)) w lp pt 13 ps 0.5 lw 1.2 lc rgb '#d62728' t 'Leisen-Reimer', 0.3/x w l dt 2 lc rgb '#555555' t '1/n', 0.3/x**2 w l dt 3 lc rgb '#555555' t '1/n^2'");
 plot.cmd("unset multiplot");
 plot.close();
-end _dsl_
+end _lmcode_
 savedsl(draw, "data/tree_convergence-draw.dslb");
 r = system ${dsl_cli(draw)} --dsl data/tree_convergence-draw.dslb;
 if (r.code != 0) { println(r.stderr); }

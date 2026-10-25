@@ -7,7 +7,7 @@
 mkdir("images");
 mkdir("data");
 mkdir("build/rendered");
-sim = _dsl_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
+sim = _lmcode_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
 market.set_date("2024-01-02");
 let curve = market.bootstrap_curve().deposit("6M", 0.035).swap("1Y", 0.036).swap("2Y", 0.037).swap("3Y", 0.038).swap("5Y", 0.040).swap("7Y", 0.041).build();
 let notional = 1000000.0;
@@ -38,7 +38,7 @@ lmf.print("lmfinance NPV " + str(npv) + ", par " + str(par) + "; by hand: floati
 lmf.assert_close(pv_float - pv_fixed, npv, 0.001 * notional);
 lmf.check(npv < 0.0, "paying 4.5% when the par rate is 4% costs money");
 lmf.save_text("data/swap_summary.csv", "npv,par,fixedleg,floatleg\n" + str(npv) + "," + str(par) + "," + str(pv_fixed) + "," + str(pv_float) + "\n");
-end _dsl_
+end _lmcode_
 savedsl(sim, "data/swap_cashflows-sim.dslb");
 r = system ${dsl_cli(sim)} --dsl data/swap_cashflows-sim.dslb;
 if (r.code != 0) { println(r.stdout); }
@@ -70,7 +70,7 @@ for (i in range(0, 5)) {
 t_npv = sprintf("NPV to the payer = floating leg %.0fk - fixed leg %.0fk = %.1fk", summary.get("floatleg", 0.0) / 1000.0, summary.get("fixedleg", 0.0) / 1000.0, summary.get("npv", 0.0) / 1000.0);
 t_par = "par rate " + sprintf("%.3f", 100.0 * summary.get("par", 0.0)) + " percent: the fixed rate that would make the NPV zero (we pay 4.5 percent)";
 
-d = _dsl_ cli="lmdraw" install="github:lmctl-ai/lmdraw@latest";
+d = _lmcode_ cli="lmdraw" install="github:lmctl-ai/lmdraw@latest";
 scene.canvas(900, 520, "#0f1720");
 scene.text(40.0, 44.0, 24.0, "A 5-year payer swap, flow by flow", "#e6edf3").set_attr("font-weight", "700");
 scene.text(40.0, 72.0, 14.0, "Pay 4.5% fixed yearly, receive 6-month Euribor half-yearly on 1 million; floating coupons are the curve's forward rates", "#9fb3c8");
@@ -136,7 +136,7 @@ scene.text(98.0, 147.0, 12.0, "fixed coupons paid (4.5% x notional)", "#e6edf3")
 scene.text(40.0, 474.0, 14.0, ${t_npv}, "#ffd166");
 scene.text(40.0, 498.0, 12.0, ${t_par}, "#9fb3c8");
 scene.render_png("build/rendered/swap_cashflows.png", 900, 520, 1);
-end _dsl_
+end _lmcode_
 savedsl(d, "data/swap_cashflows-draw.dslb");
 r = system ${dsl_cli(d)} --dsl data/swap_cashflows-draw.dslb;
 if (r.code != 0) { println(r.stderr); }

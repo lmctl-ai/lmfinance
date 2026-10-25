@@ -1,6 +1,6 @@
 # Monte Carlo with a seed: reproducible, unbiased within its own standard error.
 out = ARGV.len() > 0 ? ARGV[0] : "build/montecarlo.dslb";
-p = _dsl_ cli="lmfinance";
+p = _lmcode_ cli="lmfinance";
 let m = model.black_scholes(100.0, 0.05, 0.0, 0.2);
 let call = instrument.european_call(100.0, 1.0);
 let exact = pricing.price(call, m, pricing.analytic()).price();
@@ -26,5 +26,5 @@ let mp = pricing.price(put, m, pricing.monte_carlo(200000, 7));
 lmf.check(abs(mp.price() - 5.5735) < 4.0 * mp.stderr(), "put inside 4 standard errors");
 lmf.assert_close(risk.delta(call, m, pricing.monte_carlo(200000, 7)), 0.6368, 0.01);
 lmf.assert_close(risk.vega(call, m, pricing.monte_carlo(200000, 7)), 37.524, 0.8);
-end _dsl_
+end _lmcode_
 savedsl(p, out);

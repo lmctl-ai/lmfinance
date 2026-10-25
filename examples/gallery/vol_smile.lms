@@ -3,7 +3,7 @@
 # lmfinance prices with the semi-analytic Heston engine and inverts to implied vols; lmplot draws images/vol_smile.png.
 mkdir("images");
 mkdir("data");
-sim = _dsl_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
+sim = _lmcode_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
 let a = pricing.analytic();
 let bs = model.black_scholes(100.0, 0.03, 0.0, 0.2);
 let rows = "";
@@ -26,19 +26,19 @@ let o125 = instrument.european_call(125.0, 1.0);
 let hn = model.heston(100.0, 0.03, 0.0, 0.04, 2.0, 0.04, 0.6, -0.7);
 let skew = calibration.implied_vol(o80, bs, a, pricing.price(o80, hn, a).price()) - calibration.implied_vol(o125, bs, a, pricing.price(o125, hn, a).price());
 lmf.check(skew > 0.04, "negative correlation: downside skew");
-end _dsl_
+end _lmcode_
 savedsl(sim, "data/vol_smile-sim.dslb");
 r = system ${dsl_cli(sim)} --dsl data/vol_smile-sim.dslb;
 assert(r.code == 0);
 
-draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+draw = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
 plot.png("images/vol_smile.png", 900, 560);
 plot.cmd("set border 3; set tics nomirror; set grid lc rgb '#dddddd'; set key top right box opaque");
 plot.cmd("set title 'Heston implied-volatility smile for three correlations (1 year, spot 100)'");
 plot.cmd("set xlabel 'strike'; set ylabel 'Black-Scholes implied volatility [%]'");
 plot.cmd("plot 'data/vol_smile.csv' u 1:2 w lp lw 3 pt 7 lc rgb '#d62728' t 'rho = -0.7 (equity skew)', '' u 1:3 w lp lw 3 pt 5 lc rgb '#2ca02c' t 'rho = 0 (symmetric smile)', '' u 1:4 w lp lw 3 pt 9 lc rgb '#1f77b4' t 'rho = +0.7'");
 plot.close();
-end _dsl_
+end _lmcode_
 savedsl(draw, "data/vol_smile-draw.dslb");
 r = system ${dsl_cli(draw)} --dsl data/vol_smile-draw.dslb;
 assert(r.code == 0);

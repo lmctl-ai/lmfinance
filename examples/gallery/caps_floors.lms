@@ -6,7 +6,7 @@
 # images/caps_floors.png: cap and floor values against the strike, and the implied-vol check.
 mkdir("images");
 mkdir("data");
-sim = _dsl_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
+sim = _lmcode_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
 market.set_date("2024-01-02");
 let curve = market.bootstrap_curve().deposit("6M", 0.035).swap("2Y", 0.037).swap("5Y", 0.040).swap("10Y", 0.042).build();
 let notional = 1000000.0;
@@ -36,13 +36,13 @@ lmf.assert_close(cap_atm, floor_atm, 0.000001 * cap_atm);
 lmf.check(pricing.capfloor_npv(instrument.cap(notional, 0.15, 5.0), curve, 0.3) < 0.02 * cap_atm, "a 15% cap is worth under 2% of the ATM cap");
 lmf.save_text("data/caps_atm.csv", str(100.0 * atm) + " " + str(cap_atm / notional * 100.0) + "\n");
 lmf.print("ATM cap = floor = " + str(cap_atm) + " on 1 million notional");
-end _dsl_
+end _lmcode_
 savedsl(sim, "data/caps_floors-sim.dslb");
 r = system ${dsl_cli(sim)} --dsl data/caps_floors-sim.dslb;
 if (r.code != 0) { println(r.stdout); }
 assert(r.code == 0);
 
-draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+draw = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
 plot.png("images/caps_floors.png", 1000, 480);
 plot.cmd("stats 'data/caps_atm.csv' u 1:2 nooutput; ak = STATS_min_x; av = STATS_min_y");
 plot.cmd("set multiplot layout 1,2 title '5-year cap and floor on 6M Euribor, Black with 30% vol (lmfinance): value against strike' font ',13'");
@@ -54,7 +54,7 @@ plot.cmd("unset arrow 1; unset label 1; set ylabel 'implied volatility from the 
 plot.cmd("plot 30 w l dt 2 lw 1.5 lc rgb '#555555' notitle, 'data/caps_floors.csv' u 1:5 w p pt 7 ps 1 lc rgb '#2ca02c' notitle");
 plot.cmd("unset multiplot");
 plot.close();
-end _dsl_
+end _lmcode_
 savedsl(draw, "data/caps_floors-draw.dslb");
 r = system ${dsl_cli(draw)} --dsl data/caps_floors-draw.dslb;
 if (r.code != 0) { println(r.stderr); }

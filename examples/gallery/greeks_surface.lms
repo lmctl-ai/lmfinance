@@ -5,7 +5,7 @@
 # 0.6368, vega largest near the money, gamma integrating to delta(140) - delta(60) across spot, theta fastest ATM. Output images/greeks_surface.png.
 mkdir("images");
 mkdir("data");
-sim = _dsl_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
+sim = _lmcode_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
 let a = pricing.analytic();
 let rows = "";
 let vega_atm = 0.0;
@@ -36,13 +36,13 @@ let theta_atm = pricing.price(instrument.european_call(100.0, 0.05), model.black
 let theta_otm = pricing.price(instrument.european_call(100.0, 0.05), model.black_scholes(80.0, 0.05, 0.0, 0.2), a).theta();
 lmf.check(theta_atm < theta_otm - 10.0, "time decay is fastest at the money near expiry");
 lmf.print("ATM 1-year delta " + str(d) + ", theta near expiry: ATM " + str(theta_atm) + " vs OTM " + str(theta_otm));
-end _dsl_
+end _lmcode_
 savedsl(sim, "data/greeks_surface-sim.dslb");
 r = system ${dsl_cli(sim)} --dsl data/greeks_surface-sim.dslb;
 if (r.code != 0) { println(r.stdout); }
 assert(r.code == 0);
 
-draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+draw = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
 plot.png("images/greeks_surface.png", 1000, 760);
 plot.cmd("set multiplot layout 2,2 title 'Greeks of a European call over spot and time to expiry (lmfinance analytic engine; K = 100, r = 5%, vol = 20%)' font ',12'");
 plot.cmd("set pm3d map interpolate 2,2; set xlabel 'spot'; set ylabel 'years to expiry'; set xrange [60:140]; set yrange [0.02:2]");
@@ -53,7 +53,7 @@ plot.cmd("set title 'vega (per 1.00 of vol)' font ',11'; set cbrange [0:60]; spl
 plot.cmd("set palette defined (0 '#67000d', 0.5 '#fb6a4a', 1 '#fff5f0'); set title 'theta (per year)' font ',11'; set cbrange [-40:0]; splot 'data/greeks_surface.txt' u 1:2:6 w pm3d notitle");
 plot.cmd("unset multiplot");
 plot.close();
-end _dsl_
+end _lmcode_
 savedsl(draw, "data/greeks_surface-draw.dslb");
 r = system ${dsl_cli(draw)} --dsl data/greeks_surface-draw.dslb;
 if (r.code != 0) { println(r.stderr); }

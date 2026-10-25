@@ -1,7 +1,7 @@
 # American options: early exercise premium and agreement of binomial trees, finite differences and Barone-Adesi-Whaley.
 # S=100 K=100 r=5% vol=20% T=1: American put 6.09 (CRR converges to 6.0903, 1000 steps give 6.0896), European put 5.5735.
 out = ARGV.len() > 0 ? ARGV[0] : "build/american.dslb";
-p = _dsl_ cli="lmfinance";
+p = _lmcode_ cli="lmfinance";
 let m = model.black_scholes(100.0, 0.05, 0.0, 0.2);
 let ap = instrument.american_put(100.0, 1.0);
 let ep = instrument.european_put(100.0, 1.0);
@@ -34,5 +34,5 @@ let r = pricing.price(ap, m, pricing.binomial(1000));
 lmf.assert_close(r.delta(), -0.4, 0.05);
 lmf.assert_close(risk.delta(ap, m, pricing.binomial(1000)), r.delta(), 0.01);
 lmf.check(pricing.binomial(10).name() == "binomial", "engine name");
-end _dsl_
+end _lmcode_
 savedsl(p, out);

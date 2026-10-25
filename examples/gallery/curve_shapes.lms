@@ -5,7 +5,7 @@
 # the payer swap is worth most on the inverted curve (its first five years carry the highest forwards). lmplot draws images/curve_shapes.png: zero and forward curves on the left, prices on the right.
 mkdir("images");
 mkdir("data");
-sim = _dsl_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
+sim = _lmcode_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
 market.set_date("2024-01-02");
 let normal = market.zero_curve().zero(0.5, 0.030).zero(2.0, 0.034).zero(5.0, 0.040).zero(10.0, 0.045).zero(30.0, 0.048).build();
 let flat = market.flat_curve(0.040);
@@ -46,13 +46,13 @@ lmf.check(pn < pf, "higher long rates (normal curve) lower the 10-year bond pric
 lmf.check(pi > pn, "the inverted curve has the lowest long rates and the highest price");
 lmf.check(si > sn, "paying 4% fixed against high near-term forwards (inverted curve) is worth more");
 lmf.check(pricing.swap_par_rate(swap, inverted) > pricing.swap_par_rate(swap, normal), "the 5-year par rate follows the first five years of the curve");
-end _dsl_
+end _lmcode_
 savedsl(sim, "data/curve_shapes-sim.dslb");
 r = system ${dsl_cli(sim)} --dsl data/curve_shapes-sim.dslb;
 if (r.code != 0) { println(r.stdout); }
 assert(r.code == 0);
 
-draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+draw = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
 plot.png("images/curve_shapes.png", 1000, 500);
 plot.cmd("set multiplot layout 1,2 title 'Normal, flat and inverted curves (lmfinance): forwards and the prices they imply' font ',13'");
 plot.cmd("set border 3; set tics nomirror; set grid lc rgb '#dddddd'; set xlabel 'years'; set ylabel 'rate [%]'; set xrange [0:30]; set yrange [2:5.8]");
@@ -65,7 +65,7 @@ plot.cmd("unset key; set title 'bond price (blue, left axis) and payer swap NPV 
 plot.cmd("plot 'data/curve_prices.csv' u 2 lc rgb '#1f77b4' t 'bond price (left)', '' u 3 axes x1y2 lc rgb '#ff7f0e' t 'swap NPV (right)', '' u ($1-1):(106):(sprintf('par %.2f%%', $4)) w labels font ',9' notitle, '' u ($1-1.2):($2+0.8):(sprintf('%.1f', $2)) w labels font ',9' notitle");
 plot.cmd("unset multiplot");
 plot.close();
-end _dsl_
+end _lmcode_
 savedsl(draw, "data/curve_shapes-draw.dslb");
 r = system ${dsl_cli(draw)} --dsl data/curve_shapes-draw.dslb;
 if (r.code != 0) { println(r.stderr); }

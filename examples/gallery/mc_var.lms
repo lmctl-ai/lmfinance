@@ -7,7 +7,7 @@
 # hurt less than the linear estimate says and the full-revaluation VaR is smaller (asserted, with ES > VaR). lmplot draws images/mc_var.png: the P/L histogram with VaR and ES marked.
 mkdir("images");
 mkdir("data");
-rng = _dsl_ cli="lmnum" install="github:lmctl-ai/lmnum@latest";
+rng = _lmcode_ cli="lmnum" install="github:lmctl-ai/lmnum@latest";
 let z = num.normal(4000, 2, 2024);
 let chol = num.parse("1 0; -0.3 0.9539392014169457");   # Cholesky factor of [1 -0.3; -0.3 1]: [1 0; rho sqrt(1 - rho^2)]
 let shocks = z.mul(chol.transpose());              # rows of correlated standard normals
@@ -15,13 +15,13 @@ num.assert_close(chol.mul(chol.transpose()).sub(num.parse("1 -0.3; -0.3 1")).nor
 shocks.col(0).save_csv("data/mc_var_z1.csv");
 shocks.col(1).save_csv("data/mc_var_z2.csv");
 num.assert_close(shocks.col(0).std(), 1.0, 0.05);
-end _dsl_
+end _lmcode_
 savedsl(rng, "data/mc_var-rng.dslb");
 r = system ${dsl_cli(rng)} --dsl data/mc_var-rng.dslb;
 if (r.code != 0) { println(r.stdout); }
 assert(r.code == 0);
 
-sim = _dsl_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
+sim = _lmcode_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
 let a = pricing.analytic();
 let z1 = risk.series("data/mc_var_z1.csv");
 let z2 = risk.series("data/mc_var_z2.csv");
@@ -57,13 +57,13 @@ lmf.check(var99 < dn99, "net long gamma: the full-revaluation VaR is below the d
 lmf.check(var99 > 0.5 * dn99, "but not by more than a factor of two");
 lmf.check(series.mean() > -0.2 * var99 && series.mean() < 0.2 * var99, "the P/L distribution is centred");
 lmf.save_text("data/mc_var_marks.csv", str(-var99) + " " + str(-es99) + " " + str(-dn99) + "\n");
-end _dsl_
+end _lmcode_
 savedsl(sim, "data/mc_var-sim.dslb");
 r = system ${dsl_cli(sim)} --dsl data/mc_var-sim.dslb;
 if (r.code != 0) { println(r.stdout); }
 assert(r.code == 0);
 
-draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+draw = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
 plot.png("images/mc_var.png", 900, 560);
 plot.cmd("stats 'data/mc_var_marks.csv' u 1:2 nooutput; v = STATS_min_x; e = STATS_min_y");
 plot.cmd("stats 'data/mc_var_marks.csv' u 3 nooutput; dn = STATS_min");
@@ -75,7 +75,7 @@ plot.cmd("set arrow 1 from v, graph 0 to v, graph 0.6 nohead lw 3 lc rgb '#d6272
 plot.cmd("set label 1 sprintf('VaR 99%% = %.0f', -v) at v, graph 0.63 center tc rgb '#d62728' font ',10'; set label 2 sprintf('ES 99%% = %.0f', -e) at e, graph 0.48 center tc rgb '#ff7f0e' font ',10'; set label 3 sprintf('delta-normal VaR = %.0f', -dn) at dn, graph 0.33 center tc rgb '#555555' font ',9'");
 plot.cmd("plot 'data/mc_var_pnl.csv' u (bin($1, 60)):(1.0) smooth frequency w boxes lc rgb '#6baed6' t 'P/L histogram'");
 plot.close();
-end _dsl_
+end _lmcode_
 savedsl(draw, "data/mc_var-draw.dslb");
 r = system ${dsl_cli(draw)} --dsl data/mc_var-draw.dslb;
 if (r.code != 0) { println(r.stderr); }

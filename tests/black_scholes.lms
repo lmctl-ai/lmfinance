@@ -1,6 +1,6 @@
 # Black-Scholes-Merton analytic values: S=100 K=100 r=5% vol=20% T=1 (Hull, Haug and every textbook).
 out = ARGV.len() > 0 ? ARGV[0] : "build/black_scholes.dslb";
-p = _dsl_ cli="lmfinance";
+p = _lmcode_ cli="lmfinance";
 let m = model.black_scholes(100.0, 0.05, 0.0, 0.2);
 let call = instrument.european_call(100.0, 1.0);
 let put = instrument.european_put(100.0, 1.0);
@@ -43,5 +43,5 @@ lmf.assert_close(calibration.implied_vol(put, dv, a, pd), 0.2, 0.0000001);
 lmf.assert_close(m.param("vol"), 0.2, 0.0);
 lmf.assert_close(m.with_vol(0.3).param("vol"), 0.3, 0.0);
 lmf.assert_close(m.with_spot(110.0).spot(), 110.0, 0.0);
-end _dsl_
+end _lmcode_
 savedsl(p, out);

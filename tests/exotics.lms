@@ -2,7 +2,7 @@
 # in-out parity, the one-fixing Asian equals the vanilla, cap = floor at the ATM rate, swaption
 # put-call parity and the closed-form Black value of an at-the-money swaption.
 out = ARGV.len() > 0 ? ARGV[0] : "build/exotics.dslb";
-p = _dsl_ cli="lmfinance";
+p = _lmcode_ cli="lmfinance";
 let a = pricing.analytic();
 let m = model.black_scholes(100.0, 0.05, 0.0, 0.25);
 let vanilla = pricing.price(instrument.european_call(100.0, 1.0), m, a).price();
@@ -67,5 +67,5 @@ lmf.assert_close(atm_pay, atm_rec, 0.01);
 lmf.assert_close(atm_pay, annuity * fwd * 0.0796557, 0.003 * atm_pay);
 lmf.assert_close(pricing.swaption_implied_vol(instrument.swaption(sw1, 1.0), curve, pricing.swaption_npv(instrument.swaption(sw1, 1.0), curve, 0.2)), 0.2, 0.000001);
 lmf.print("5Y forward swap rate in 1Y " + str(fwd) + ", annuity " + str(annuity) + ", ATM payer swaption " + str(atm_pay));
-end _dsl_
+end _lmcode_
 savedsl(p, out);

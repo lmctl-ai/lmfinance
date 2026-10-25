@@ -1,7 +1,7 @@
 # Bootstrap a curve from deposits and swaps, price a bond on it, and write the curve to CSV.
 mkdir("build/examples");
 out = ARGV.len() > 0 ? ARGV[0] : "build/bond_curve.dslb";
-p = _dsl_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
+p = _lmcode_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
 market.set_date("2024-01-02");
 let curve = market.bootstrap_curve()
   .deposit("3M", 0.0300).deposit("6M", 0.0310)
@@ -23,7 +23,7 @@ lmf.check(clean > 100.0, "coupon 4.5% above the 7y rate prices over par");
 let swap = instrument.swap(10000000.0, 0.04, 5.0);
 lmf.assert_close(pricing.swap_npv(swap, curve), 0.0, 0.01);
 lmf.print("swap DV01 on 10mm: " + str(risk.swap_dv01(swap, curve)));
-end _dsl_
+end _lmcode_
 savedsl(p, out);
 r = system ${dsl_cli(p)} --dsl ${out};
 assert(r.code == 0);

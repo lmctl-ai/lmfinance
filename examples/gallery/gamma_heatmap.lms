@@ -5,7 +5,7 @@
 # Output: images/gamma_heatmap.png   (run: lmctl autorun <raw url of this file>)
 mkdir("images");
 mkdir("data");
-sim = _dsl_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
+sim = _lmcode_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
 let a = pricing.analytic();
 let rows = "";
 for (i in range(0, 41)) {
@@ -24,13 +24,13 @@ let half = instrument.european_call(100.0, 0.5);
 let d1 = (0.03 + 0.5 * 0.0625) * 0.5 / (0.25 * sqrt(0.5));
 let phi = pow(2.718281828459045, -0.5 * d1 * d1) / 2.5066282746310002;
 lmf.assert_close(pricing.price(half, m100, a).gamma(), phi / (100.0 * 0.25 * sqrt(0.5)), 0.0002);
-end _dsl_
+end _lmcode_
 savedsl(sim, "data/gamma_heatmap-sim.dslb");
 r = system ${dsl_cli(sim)} --dsl data/gamma_heatmap-sim.dslb;
 if (r.code != 0) { println(r.stdout); }
 assert(r.code == 0);
 
-draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+draw = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
 plot.png("images/gamma_heatmap.png", 950, 600);
 plot.cmd("set title 'Gamma of a call (strike 100, 25% vol): the at-the-money spike sharpens toward expiry'");
 plot.cmd("set xlabel 'underlying price'; set ylabel 'days to expiry'; set cblabel 'gamma'");
@@ -39,7 +39,7 @@ plot.cmd("set palette defined (0 '#0b1d51', 0.25 '#2a6fb0', 0.5 '#6fc0a8', 0.75 
 plot.cmd("set cbrange [0:0.09]; set xrange [70:130]; set yrange [4:352]");
 plot.cmd("splot 'data/gamma_grid.txt' u 1:2:3 w pm3d notitle");
 plot.close();
-end _dsl_
+end _lmcode_
 savedsl(draw, "data/gamma_heatmap-draw.dslb");
 r = system ${dsl_cli(draw)} --dsl data/gamma_heatmap-draw.dslb;
 assert(r.code == 0);

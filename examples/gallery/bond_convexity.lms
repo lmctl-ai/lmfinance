@@ -3,7 +3,7 @@
 # lmfinance prices 5% annual bonds of 2, 10 and 30 years, lmplot draws images/bond_convexity.png.
 mkdir("images");
 mkdir("data");
-sim = _dsl_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
+sim = _lmcode_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
 let b2 = instrument.bond(100.0, 0.05, 2.0, 1);
 let b10 = instrument.bond(100.0, 0.05, 10.0, 1);
 let b30 = instrument.bond(100.0, 0.05, 30.0, 1);
@@ -23,12 +23,12 @@ lmf.print("10y bond: modified duration " + str(d10) + ", convexity " + str(cv));
 # the second-order estimate P (1 - D dy + C dy^2 / 2) at +2% is within a few cents of the exact price
 let dy = 0.02;
 lmf.assert_close(100.0 * (1.0 - d10 * dy + 0.5 * cv * dy * dy), pricing.bond_price_from_yield(b10, 0.07), 0.15);
-end _dsl_
+end _lmcode_
 savedsl(sim, "data/bond_convexity-sim.dslb");
 r = system ${dsl_cli(sim)} --dsl data/bond_convexity-sim.dslb;
 assert(r.code == 0);
 
-draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+draw = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
 plot.png("images/bond_convexity.png", 900, 600);
 # Read before plot ranges/log scales filter the data.
 plot.cmd("stats 'data/bond_tangent.csv' using 1 nooutput; d = STATS_min");
@@ -37,7 +37,7 @@ plot.cmd("set title 'Price against yield for 5% coupon bonds, and the duration t
 plot.cmd("set xlabel 'yield [%]'; set ylabel 'price per 100 face'; set xrange [0:12]; set yrange [40:230]");
 plot.cmd("plot 'data/bond_price_yield.csv' u 1:2 w l lw 3 lc rgb '#2ca02c' t '2 years', '' u 1:3 w l lw 3 lc rgb '#1f77b4' t '10 years', '' u 1:4 w l lw 3 lc rgb '#d62728' t '30 years', 100 * (1 - d * (x - 5) / 100.0) w l lw 2 dt 2 lc rgb 'black' t 'duration tangent (10y)'");
 plot.close();
-end _dsl_
+end _lmcode_
 savedsl(draw, "data/bond_convexity-draw.dslb");
 r = system ${dsl_cli(draw)} --dsl data/bond_convexity-draw.dslb;
 assert(r.code == 0);

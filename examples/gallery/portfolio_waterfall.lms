@@ -6,7 +6,7 @@
 # attribution on the right.
 mkdir("images");
 mkdir("data");
-sim = _dsl_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
+sim = _lmcode_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
 let a = pricing.analytic();
 let before = model.black_scholes(100.0, 0.05, 0.0, 0.20);
 let after = model.black_scholes(106.0, 0.0525, 0.0, 0.23);
@@ -67,13 +67,13 @@ level = level + total_theta;
 w = w + "5 " + str(level) + " " + str(level + unexplained) + " unexplained\n";
 w = w + "6 0 " + str(total_actual) + " actual\n";
 lmf.save_text("data/waterfall.csv", w);
-end _dsl_
+end _lmcode_
 savedsl(sim, "data/portfolio_waterfall-sim.dslb");
 r = system ${dsl_cli(sim)} --dsl data/portfolio_waterfall-sim.dslb;
 if (r.code != 0) { println(r.stdout); }
 assert(r.code == 0);
 
-draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+draw = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
 plot.png("images/portfolio_waterfall.png", 1000, 500);
 plot.cmd("set multiplot layout 1,2 title 'P/L attribution of an option book after spot +6, vol +3 points, rates +25 bp, 10 days (lmfinance Greeks)' font ',12'");
 plot.cmd("set border 3; set tics nomirror; set grid ytics lc rgb '#dddddd'; unset key; set style fill solid 0.9 border lc rgb '#333333'");
@@ -84,7 +84,7 @@ plot.cmd("set style line 1 lc rgb '#1f77b4'; set style line 2 lc rgb '#9467bd'; 
 plot.cmd("plot 'data/waterfall_positions.csv' u 2 ls 1 t 'delta', '' u 3 ls 2 t 'gamma', '' u 4 ls 3 t 'vega', '' u 5 ls 4 t 'rho', '' u 6 ls 5 t 'theta', '' u 7 ls 6 fs pattern 1 t 'actual'");
 plot.cmd("unset multiplot");
 plot.close();
-end _dsl_
+end _lmcode_
 savedsl(draw, "data/portfolio_waterfall-draw.dslb");
 r = system ${dsl_cli(draw)} --dsl data/portfolio_waterfall-draw.dslb;
 if (r.code != 0) { println(r.stderr); }

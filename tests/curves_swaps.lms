@@ -1,6 +1,6 @@
 # Yield curves and interest rate swaps.
 out = ARGV.len() > 0 ? ARGV[0] : "build/curves_swaps.dslb";
-p = _dsl_ cli="lmfinance";
+p = _lmcode_ cli="lmfinance";
 market.set_date("2024-01-02");
 lmf.check(market.date() == "2024-01-02", "evaluation date");
 # a flat 5% continuous curve: D(t) = exp(-0.05 t), zero = forward = 5%
@@ -44,5 +44,5 @@ let d = risk.swap_dv01(instrument.swap(1000000.0, 0.04, 5.0), cu);
 lmf.check(d > 0.0, "payer gains when rates rise");
 lmf.assert_close(d, 1000000.0 * 4.5 * 0.0001, 40.0);
 lmf.assert_close(risk.swap_dv01(instrument.swap(1000000.0, 0.04, 5.0).receiver(), cu), -d, 0.000001);
-end _dsl_
+end _lmcode_
 savedsl(p, out);

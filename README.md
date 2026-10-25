@@ -86,13 +86,13 @@ QuantLib and the GCC C++ runtimes are static.
 
 ```
 # bs.lms: Black-Scholes call S=100 K=100 r=5% vol=20% T=1 is worth 10.4506
-p = _dsl_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
+p = _lmcode_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
 let m = model.black_scholes(100.0, 0.05, 0.0, 0.2);
 let call = instrument.european_call(100.0, 1.0);
 let r = pricing.price(call, m, pricing.analytic());
 lmf.print("price " + str(r.price()) + " delta " + str(r.delta()));
 lmf.assert_close(r.price(), 10.4506, 0.00005);
-end _dsl_
+end _lmcode_
 savedsl(p, "bs.dslb");
 system ${dsl_cli(p)} --dsl bs.dslb;
 ```

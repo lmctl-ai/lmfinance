@@ -2,7 +2,7 @@
 # as 1/sqrt(N). Every point is reproducible (seed 7). lmfinance prices, lmplot draws images/mc_convergence.png.
 mkdir("images");
 mkdir("data");
-sim = _dsl_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
+sim = _lmcode_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
 let m = model.black_scholes(100.0, 0.05, 0.0, 0.2);
 let call = instrument.european_call(100.0, 1.0);
 let exact = pricing.price(call, m, pricing.analytic()).price();
@@ -21,12 +21,12 @@ lmf.save_text("data/mc_exact.csv", str(exact) + "\n");
 # the same seed gives the same estimate; seven of the eight estimates are within 3 standard errors
 lmf.assert_close(pricing.price(call, m, pricing.monte_carlo(4000, 7)).price(), pricing.price(call, m, pricing.monte_carlo(4000, 7)).price(), 0.0);
 lmf.check(inside >= 7, "seven of eight estimates within 3 standard errors");
-end _dsl_
+end _lmcode_
 savedsl(sim, "data/mc_convergence-sim.dslb");
 r = system ${dsl_cli(sim)} --dsl data/mc_convergence-sim.dslb;
 assert(r.code == 0);
 
-draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+draw = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
 plot.png("images/mc_convergence.png", 900, 560);
 # Read before plot ranges/log scales filter the data.
 plot.cmd("stats 'data/mc_exact.csv' using 1 nooutput; exact = STATS_min");
@@ -35,7 +35,7 @@ plot.cmd("set title 'Monte Carlo estimate of a call value with 1 standard-error 
 plot.cmd("set xlabel 'paths'; set ylabel 'price'; set xrange [300:3e7]; set yrange [9.3:11.0]");
 plot.cmd("plot exact w l lw 2 dt 2 lc rgb 'black' t 'closed form 10.4506', 'data/mc_estimates.csv' u 1:2:3 w yerrorbars pt 7 ps 1.4 lw 2 lc rgb '#d62728' t 'Monte Carlo'");
 plot.close();
-end _dsl_
+end _lmcode_
 savedsl(draw, "data/mc_convergence-draw.dslb");
 r = system ${dsl_cli(draw)} --dsl data/mc_convergence-draw.dslb;
 assert(r.code == 0);

@@ -3,17 +3,17 @@
 # Needs lmplot on PATH or installable; the PNG lands in images/
 mkdir("images");
 mkdir("data");
-calc = _dsl_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
+calc = _lmcode_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
 
 let m = model.black_scholes(100.0, 0.05, 0.0, 0.2);
 let call = instrument.european_call(100.0, 1.0);
 risk.save_profile(call, m, pricing.analytic(), 60.0, 140.0, 161, "data/option_greeks.csv");
-end _dsl_
+end _lmcode_
 savedsl(calc, "data/option_greeks-calc.dslb");
 r = system ${dsl_cli(calc)} --dsl data/option_greeks-calc.dslb;
 assert(r.code == 0);
 
-draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+draw = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
 plot.png("images/option_greeks.png", 900, 600);
 plot.cmd("set border 11; set grid lc rgb '#dddddd'");
 plot.cmd("set title 'European call (strike 100, 1 year, 20% vol): price and delta'");
@@ -25,7 +25,7 @@ plot.cmd("set ytics nomirror");
 plot.cmd("set key top left box opaque");
 plot.cmd("plot 'data/option_greeks.csv' using 1:2 with lines lw 3 lc rgb '#d62728' title 'price (left)', '' using 1:3 axes x1y2 with lines lw 3 lc rgb '#1f77b4' title 'delta (right)'");
 plot.close();
-end _dsl_
+end _lmcode_
 savedsl(draw, "data/option_greeks-draw.dslb");
 r = system ${dsl_cli(draw)} --dsl data/option_greeks-draw.dslb;
 assert(r.code == 0);

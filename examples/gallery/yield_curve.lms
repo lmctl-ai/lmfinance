@@ -3,19 +3,19 @@
 # Needs lmplot on PATH or installable; the PNG lands in images/
 mkdir("images");
 mkdir("data");
-calc = _dsl_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
+calc = _lmcode_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
 
 market.set_date("2024-01-02");
 let curve = market.bootstrap_curve()
   .deposit("3M", 0.0300).deposit("6M", 0.0310)
   .swap("2Y", 0.0350).swap("5Y", 0.0400).swap("10Y", 0.0420).swap("30Y", 0.0410).build();
 curve.save_csv("data/yield_curve.csv", 30.0, 240);
-end _dsl_
+end _lmcode_
 savedsl(calc, "data/yield_curve-calc.dslb");
 r = system ${dsl_cli(calc)} --dsl data/yield_curve-calc.dslb;
 assert(r.code == 0);
 
-draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+draw = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
 plot.png("images/yield_curve.png", 900, 600);
 plot.cmd("set border 3; set tics nomirror; set grid lc rgb '#dddddd'");
 plot.cmd("set title 'Bootstrapped curve: zero rates and one-period forward rates'");
@@ -24,7 +24,7 @@ plot.cmd("set ylabel 'rate'");
 plot.cmd("set key bottom right box opaque");
 plot.cmd("plot 'data/yield_curve.csv' using 1:2 with lines lw 3 lc rgb '#1f77b4' title 'zero rate', '' using 1:4 with lines lw 3 lc rgb '#d62728' title 'forward rate'");
 plot.close();
-end _dsl_
+end _lmcode_
 savedsl(draw, "data/yield_curve-draw.dslb");
 r = system ${dsl_cli(draw)} --dsl data/yield_curve-draw.dslb;
 assert(r.code == 0);

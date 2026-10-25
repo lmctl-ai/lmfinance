@@ -7,7 +7,7 @@
 mkdir("build/rendered");
 mkdir("images");
 mkdir("data");
-sim = _dsl_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
+sim = _lmcode_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
 let c = market.flat_curve(0.04);
 let b = instrument.bond(100.0, 0.05, 10.0, 1);
 let npv = pricing.bond_npv(b, c);
@@ -28,7 +28,7 @@ lmf.save_text("data/bond_balance.csv", text);
 lmf.assert_close(total, npv, 0.1);
 lmf.assert_close(weighted / total, pricing.bond_macaulay_duration(b, y), 0.05);
 lmf.print("price " + str(npv) + " macaulay " + str(pricing.bond_macaulay_duration(b, y)));
-end _dsl_
+end _lmcode_
 savedsl(sim, "data/bond_balance-sim.dslb");
 r = system ${dsl_cli(sim)} --dsl data/bond_balance-sim.dslb;
 if (r.code != 0) { println(r.stdout); }
@@ -112,7 +112,7 @@ yb9 = BASE - hb9;
 ho9 = PX * m9.get("cash", 0.0) + 0.0001;
 yo9 = BASE - ho9;
 
-d = _dsl_ cli="lmdraw" install="github:lmctl-ai/lmdraw@latest";
+d = _lmcode_ cli="lmdraw" install="github:lmctl-ai/lmdraw@latest";
 scene.canvas(900, 520, "#0f1720");
 scene.text(40.0, 44.0, 24.0, "Duration is the balance point of the cash flows", "#e6edf3").set_attr("font-weight", "700");
 scene.text(40.0, 72.0, 14.0, "10-year 5% bond on a flat 4% curve: filled bars are present values, outlines the cash received.", "#9fb3c8");
@@ -152,7 +152,7 @@ scene.text(${fx}, 470.0, 15.0, ${t_dur}, "#ffd166").set_attr("text-anchor", "mid
 scene.text(60.0, 130.0, 15.0, ${t_price}, "#e6edf3");
 scene.text(60.0, 152.0, 13.0, "coupons 5 a year, principal 100 in year 10; discount factors from the curve", "#9fb3c8");
 scene.render_png("build/rendered/bond_balance.png", 900, 520, 1);
-end _dsl_
+end _lmcode_
 savedsl(d, "data/bond_balance-draw.dslb");
 r = system ${dsl_cli(d)} --dsl data/bond_balance-draw.dslb;
 if (r.code != 0) { println(r.stderr); }

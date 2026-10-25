@@ -2,7 +2,7 @@
 out = ARGV.len() > 0 ? ARGV[0] : "build/series.dslb";
 mkdir("build/examples");
 write_file("build/examples/pnl.csv", "pnl\n-50, -40\n-30 -20 -10\n0\n10\n20\n30\n40\n");
-p = _dsl_ cli="lmfinance";
+p = _lmcode_ cli="lmfinance";
 let s = risk.series("build/examples/pnl.csv");
 lmf.check(s.size() == 10, "ten samples, header skipped");
 lmf.assert_close(s.get(0), -50.0, 0.0);
@@ -22,5 +22,5 @@ lmf.assert_close(s.es(0.9), 50.0, 0.000000001);
 lmf.assert_close(s.var(0.8), 32.0, 0.000000001);
 lmf.assert_close(s.es(0.8), 45.0, 0.000000001);
 lmf.check(s.es(0.9) >= s.var(0.9), "ES is at least VaR");
-end _dsl_
+end _lmcode_
 savedsl(p, out);
