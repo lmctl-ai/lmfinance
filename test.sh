@@ -124,10 +124,16 @@ python3 - "$WORK/std.raw" <<'PYRUN' || fail "std program emitted unexpected outp
 from pathlib import Path
 import sys
 lines = Path(sys.argv[1]).read_text(encoding="utf-8").splitlines()
-assert lines[-1] == '{"ok": true, "result": null}', lines
-Path(sys.argv[1]).write_text("\n".join(lines[:-1]) + ("\n" if len(lines) > 1 else ""), encoding="utf-8")
+expected = [
+    "string=ABC:5",
+    "math=9",
+    "collections=2:7",
+    "split=a-b-c",
+    "file=true:18",
+    '{"ok": true, "result": null}',
+]
+assert lines == expected, lines
 PYRUN
-printf '%s\n' "string=ABC:5" "math=9" "collections=2:7" "split=a-b-c" "file=true:18" | cmp -s - "$WORK/std.out" || { cat "$WORK/std.out" >&2; fail "std program output differs"; }
 ok "standard library runs end to end on the host: string, math, collections, file"
 
 # Error paths: each snippet must fail the run with exit 3 and a message naming the problem.
