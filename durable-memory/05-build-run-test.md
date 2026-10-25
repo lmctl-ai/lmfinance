@@ -5,7 +5,7 @@ Measured 2026-10-23, x86_64 Linux (WSL2), 4 cores, GCC, Ninja.
 - Clean Release build (717 QuantLib translation units at -O1 plus the host): about 3 min 20 s.
   Linux uses dynamic glibc >= 2.35, static QuantLib and static libstdc++/libgcc. Boost headers 184 MB in
   `third_party/` (not in the binary).
-- `./test.sh` (18 checks): sdk pin; deps pin; build; `--version`; schema equals the registrations;
+- `./test.sh` (19 checks): sdk pin; deps pin; build; `--version`; schema equals the registrations;
   embedded schema byte-identical; host registry equals compiler signatures; notices; Linux ELF dependency allowlist and glibc 2.35 ABI audit;
   14 programs (9 under `tests/`, 5 under `examples/`) compile and run and pass their own asserts;
   5 result files byte-identical on rerun; 28 error snippets exit 3 with a message naming the

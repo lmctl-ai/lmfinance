@@ -29,9 +29,11 @@ cmake --build build --parallel 4      # Build binary at build/lmfinance
 
 ## SDK pin and sync
 
-The vendored SDK header is pinned via `sdk.lock` pointing to `https://github.com/lmctl-ai/lmcode-cpp`:
+The vendored SDK is pinned via `sdk.lock` (lmcode-cpp `ee1f084`) with a sha256 per file: `cpp/dslvm.hpp`, `cpp/stdlib/*.hpp`, `cpp/std/lmcode-std.schema.json`, `scripts/merge-std.py`.
+The standard library (string, math, collections, file) is built into lmscript 0.2.420 and registered by the default `dslvm::Registry`, so the host schema declares only lmfinance members; `test.sh` excludes the 72 standard signatures from the registry before comparing with the compiler.
 ```sh
-scripts/sync-sdk.sh                   # Refetches pinned cpp/dslvm.hpp and verifies sha256
+scripts/sync-sdk.sh                   # Refetches the pinned SDK headers from ../lmcode-cpp (LMCODE_CPP) and rewrites sdk.lock
+scripts/sync-sdk.sh --verify          # Checks every pinned file
 ```
 
 ## Adding an example or function

@@ -4,7 +4,7 @@
 | --- | --- | --- | --- |
 | QuantLib | v1.44 (`ab4cb476`, pinned git commit) | modified BSD ("BSD-like", full text in THIRD_PARTY_NOTICES) | compiled from source into the binary |
 | Boost | 1.89.0 headers | BSL-1.0 | release tarball pinned by sha256; only the `boost/` header tree is extracted; nothing linked |
-| lmcode-cpp | `dslvm.hpp`, pinned in `sdk.lock` | MIT | vendored single header |
+| lmcode-cpp | `dslvm.hpp`, `stdlib/*.hpp`, `std/` schema, pinned per file in `sdk.lock` | MIT | vendored headers (ee1f084) |
 
 Scientific dependencies use the permissive licenses above. Linux uses dynamic system glibc
 (LGPL-2.1 or later); GNU builds keep libstdc++/libgcc static with the GCC Runtime Library Exception. `lmfinance --notices` prints THIRD_PARTY_NOTICES (embedded).
