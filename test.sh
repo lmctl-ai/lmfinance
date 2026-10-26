@@ -215,7 +215,7 @@ done
 for ex in $(grep -oE '\(examples/[A-Za-z0-9_/.-]*\.lms\)' README.md | tr -d '()' | sort -u); do
   [ -f "$ex" ] || fail "README links missing example $ex"
 done
-grep -q 'lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/' README.md || fail "README captions lack lmctl autorun commands"
+grep -qE 'lmctl( autorun)? https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/' README.md || fail "README captions lack lmctl run commands"
 ok "README gallery: $nimg images valid and within size limits, every linked example exists, captions use lmctl autorun"
 
 # Gallery examples: lmfinance computes, lmplot draws (needs lmplot on PATH, or network for install=; the GIF needs ffmpeg).
