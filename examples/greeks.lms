@@ -16,6 +16,6 @@ lmf.assert_close(risk.delta(call, m, mc), r.delta(), 0.01);
 lmf.assert_close(risk.theta(call, m, pricing.analytic()), r.theta(), 0.001);
 risk.save_profile(call, m, pricing.analytic(), 60.0, 140.0, 161, "build/examples/profile.csv");
 end _lmcode_
-savedsl(p, out);
-r = system ${dsl_cli(p)} --dsl ${out};
-assert(r.code == 0);
+
+r = run_lmcode(p);
+assert(r.ok, "lmcode host failed");
