@@ -30,7 +30,7 @@ lmf.assert_close(weighted / total, pricing.bond_macaulay_duration(b, y), 0.05);
 lmf.print("price " + str(npv) + " macaulay " + str(pricing.bond_macaulay_duration(b, y)));
 end _lmcode_
 savedsl(sim, "data/bond_balance-sim.dslb");
-r = system ${dsl_cli(sim)} --dsl data/bond_balance-sim.dslb;
+r = system ${dsl_cli(sim)} --lmcode data/bond_balance-sim.dslb;
 if (r.code != 0) { println(r.stdout); }
 assert(r.code == 0);
 
@@ -154,7 +154,7 @@ scene.text(60.0, 152.0, 13.0, "coupons 5 a year, principal 100 in year 10; disco
 scene.render_png("build/rendered/bond_balance.png", 900, 520, 1);
 end _lmcode_
 savedsl(d, "data/bond_balance-draw.dslb");
-r = system ${dsl_cli(d)} --dsl data/bond_balance-draw.dslb;
+r = system ${dsl_cli(d)} --lmcode data/bond_balance-draw.dslb;
 if (r.code != 0) { println(r.stderr); }
 assert(r.code == 0);
 copy_file("build/rendered/bond_balance.png", "images/bond_balance.png");

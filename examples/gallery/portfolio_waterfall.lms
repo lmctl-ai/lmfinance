@@ -69,7 +69,7 @@ w = w + "6 0 " + str(total_actual) + " actual\n";
 lmf.save_text("data/waterfall.csv", w);
 end _lmcode_
 savedsl(sim, "data/portfolio_waterfall-sim.dslb");
-r = system ${dsl_cli(sim)} --dsl data/portfolio_waterfall-sim.dslb;
+r = system ${dsl_cli(sim)} --lmcode data/portfolio_waterfall-sim.dslb;
 if (r.code != 0) { println(r.stdout); }
 assert(r.code == 0);
 
@@ -86,7 +86,7 @@ plot.cmd("unset multiplot");
 plot.close();
 end _lmcode_
 savedsl(draw, "data/portfolio_waterfall-draw.dslb");
-r = system ${dsl_cli(draw)} --dsl data/portfolio_waterfall-draw.dslb;
+r = system ${dsl_cli(draw)} --lmcode data/portfolio_waterfall-draw.dslb;
 if (r.code != 0) { println(r.stderr); }
 assert(r.code == 0);
 println("wrote images/portfolio_waterfall.png");

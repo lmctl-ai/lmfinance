@@ -34,7 +34,7 @@ lmf.check(skew > 0.05, "downside skew at 0.66 years");
 lmf.print("ATM vol " + str(vol_short) + " -> " + str(vol_long) + ", skew " + str(skew));
 end _lmcode_
 savedsl(sim, "data/vol_surface-sim.dslb");
-r = system ${dsl_cli(sim)} --dsl data/vol_surface-sim.dslb;
+r = system ${dsl_cli(sim)} --lmcode data/vol_surface-sim.dslb;
 if (r.code != 0) { println(r.stdout); }
 assert(r.code == 0);
 
@@ -49,6 +49,6 @@ plot.cmd("splot 'data/vol_surface.txt' u 1:2:3 w pm3d notitle");
 plot.close();
 end _lmcode_
 savedsl(draw, "data/vol_surface-draw.dslb");
-r = system ${dsl_cli(draw)} --dsl data/vol_surface-draw.dslb;
+r = system ${dsl_cli(draw)} --lmcode data/vol_surface-draw.dslb;
 assert(r.code == 0);
 println("wrote images/vol_surface.png");

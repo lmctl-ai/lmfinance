@@ -16,7 +16,7 @@ for (k in range(0, 40)) {
 lmf.assert_close(pricing.price(instrument.european_call(100.0, 1.0), m, pricing.analytic()).price(), 10.4506, 0.00005);
 end _lmcode_
 savedsl(sim, "data/option_decay-sim.dslb");
-r = system ${dsl_cli(sim)} --dsl data/option_decay-sim.dslb;
+r = system ${dsl_cli(sim)} --lmcode data/option_decay-sim.dslb;
 assert(r.code == 0);
 
 draw = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
@@ -32,7 +32,7 @@ for (k in range(0, 40)) {
 }
 end _lmcode_
 savedsl(draw, "data/option_decay-draw.dslb");
-r = system ${dsl_cli(draw)} --dsl data/option_decay-draw.dslb;
+r = system ${dsl_cli(draw)} --lmcode data/option_decay-draw.dslb;
 assert(r.code == 0);
 r = system ffmpeg -y -loglevel error -framerate 10 -i data/decay/f%d.png -vf "split[a][b];[a]palettegen=max_colors=64[p];[b][p]paletteuse=dither=none" images/option_decay.gif;
 assert(r.code == 0);

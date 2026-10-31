@@ -60,7 +60,7 @@ lmf.save_text("data/heston_resid.csv", resid);
 lmf.print("largest residual " + str(100.0 * worst) + " vol points");
 end _lmcode_
 savedsl(sim, "data/heston_calibration-sim.dslb");
-r = system ${dsl_cli(sim)} --dsl data/heston_calibration-sim.dslb;
+r = system ${dsl_cli(sim)} --lmcode data/heston_calibration-sim.dslb;
 if (r.code != 0) { println(r.stdout); }
 assert(r.code == 0);
 
@@ -78,7 +78,7 @@ plot.cmd("unset multiplot");
 plot.close();
 end _lmcode_
 savedsl(draw, "data/heston_calibration-draw.dslb");
-r = system ${dsl_cli(draw)} --dsl data/heston_calibration-draw.dslb;
+r = system ${dsl_cli(draw)} --lmcode data/heston_calibration-draw.dslb;
 if (r.code != 0) { println(r.stderr); }
 assert(r.code == 0);
 println("wrote images/heston_calibration.png");

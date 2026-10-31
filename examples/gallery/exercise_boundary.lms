@@ -44,7 +44,7 @@ lmf.save_text("data/exercise_value.csv", prof);
 lmf.save_text("data/exercise_star.csv", str(boundary_1y) + " " + str(100.0 - boundary_1y) + "\n");
 end _lmcode_
 savedsl(sim, "data/exercise_boundary-sim.dslb");
-r = system ${dsl_cli(sim)} --dsl data/exercise_boundary-sim.dslb;
+r = system ${dsl_cli(sim)} --lmcode data/exercise_boundary-sim.dslb;
 if (r.code != 0) { println(r.stdout); }
 assert(r.code == 0);
 
@@ -63,7 +63,7 @@ plot.cmd("unset multiplot");
 plot.close();
 end _lmcode_
 savedsl(draw, "data/exercise_boundary-draw.dslb");
-r = system ${dsl_cli(draw)} --dsl data/exercise_boundary-draw.dslb;
+r = system ${dsl_cli(draw)} --lmcode data/exercise_boundary-draw.dslb;
 if (r.code != 0) { println(r.stderr); }
 assert(r.code == 0);
 println("wrote images/exercise_boundary.png");

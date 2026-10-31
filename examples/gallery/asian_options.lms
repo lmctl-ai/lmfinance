@@ -42,7 +42,7 @@ for (i in range(0, 21)) {
 lmf.save_text("data/asian_strikes.csv", krows);
 end _lmcode_
 savedsl(sim, "data/asian_options-sim.dslb");
-r = system ${dsl_cli(sim)} --dsl data/asian_options-sim.dslb;
+r = system ${dsl_cli(sim)} --lmcode data/asian_options-sim.dslb;
 if (r.code != 0) { println(r.stdout); }
 assert(r.code == 0);
 
@@ -58,7 +58,7 @@ plot.cmd("unset multiplot");
 plot.close();
 end _lmcode_
 savedsl(draw, "data/asian_options-draw.dslb");
-r = system ${dsl_cli(draw)} --dsl data/asian_options-draw.dslb;
+r = system ${dsl_cli(draw)} --lmcode data/asian_options-draw.dslb;
 if (r.code != 0) { println(r.stderr); }
 assert(r.code == 0);
 println("wrote images/asian_options.png");

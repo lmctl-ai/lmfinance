@@ -56,7 +56,7 @@ lmf.assert_close(di + dout, put, 0.000001);
 lmf.print("90 put " + str(put) + " = down-and-in (70) " + str(di) + " + down-and-out " + str(dout));
 end _lmcode_
 savedsl(sim, "data/barrier_options-sim.dslb");
-r = system ${dsl_cli(sim)} --dsl data/barrier_options-sim.dslb;
+r = system ${dsl_cli(sim)} --lmcode data/barrier_options-sim.dslb;
 if (r.code != 0) { println(r.stdout); }
 assert(r.code == 0);
 
@@ -72,7 +72,7 @@ plot.cmd("unset multiplot");
 plot.close();
 end _lmcode_
 savedsl(draw, "data/barrier_options-draw.dslb");
-r = system ${dsl_cli(draw)} --dsl data/barrier_options-draw.dslb;
+r = system ${dsl_cli(draw)} --lmcode data/barrier_options-draw.dslb;
 if (r.code != 0) { println(r.stderr); }
 assert(r.code == 0);
 println("wrote images/barrier_options.png");

@@ -29,5 +29,5 @@ for (i in range(1, 41)) {
 lmf.save_text("build/examples/binomial_error.csv", rows);
 end _lmcode_
 savedsl(p, out);
-r = system ${dsl_cli(p)} --dsl ${out};
+r = system ${dsl_cli(p)} --lmcode ${out};
 assert(r.code == 0);

@@ -51,7 +51,7 @@ lmf.save_text("data/swaption_fwd.csv", str(100.0 * fwd) + " 0\n");
 lmf.print("1Y x 5Y forward swap rate " + str(fwd) + ", annuity " + str(annuity));
 end _lmcode_
 savedsl(sim, "data/swaption_grid-sim.dslb");
-r = system ${dsl_cli(sim)} --dsl data/swaption_grid-sim.dslb;
+r = system ${dsl_cli(sim)} --lmcode data/swaption_grid-sim.dslb;
 if (r.code != 0) { println(r.stdout); }
 assert(r.code == 0);
 
@@ -71,7 +71,7 @@ plot.cmd("unset multiplot");
 plot.close();
 end _lmcode_
 savedsl(draw, "data/swaption_grid-draw.dslb");
-r = system ${dsl_cli(draw)} --dsl data/swaption_grid-draw.dslb;
+r = system ${dsl_cli(draw)} --lmcode data/swaption_grid-draw.dslb;
 if (r.code != 0) { println(r.stderr); }
 assert(r.code == 0);
 println("wrote images/swaption_grid.png");

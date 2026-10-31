@@ -28,7 +28,7 @@ for (k in range(1, 11)) {
 lmf.save_text("data/dv01_swaps.txt", srows);
 end _lmcode_
 savedsl(sim, "data/dv01_ladder-sim.dslb");
-r = system ${dsl_cli(sim)} --dsl data/dv01_ladder-sim.dslb;
+r = system ${dsl_cli(sim)} --lmcode data/dv01_ladder-sim.dslb;
 if (r.code != 0) { println(r.stdout); }
 assert(r.code == 0);
 
@@ -48,6 +48,6 @@ plot.cmd("unset multiplot");
 plot.close();
 end _lmcode_
 savedsl(draw, "data/dv01_ladder-draw.dslb");
-r = system ${dsl_cli(draw)} --dsl data/dv01_ladder-draw.dslb;
+r = system ${dsl_cli(draw)} --lmcode data/dv01_ladder-draw.dslb;
 assert(r.code == 0);
 println("wrote images/dv01_ladder.png");

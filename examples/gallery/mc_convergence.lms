@@ -23,7 +23,7 @@ lmf.assert_close(pricing.price(call, m, pricing.monte_carlo(4000, 7)).price(), p
 lmf.check(inside >= 7, "seven of eight estimates within 3 standard errors");
 end _lmcode_
 savedsl(sim, "data/mc_convergence-sim.dslb");
-r = system ${dsl_cli(sim)} --dsl data/mc_convergence-sim.dslb;
+r = system ${dsl_cli(sim)} --lmcode data/mc_convergence-sim.dslb;
 assert(r.code == 0);
 
 draw = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
@@ -37,6 +37,6 @@ plot.cmd("plot exact w l lw 2 dt 2 lc rgb 'black' t 'closed form 10.4506', 'data
 plot.close();
 end _lmcode_
 savedsl(draw, "data/mc_convergence-draw.dslb");
-r = system ${dsl_cli(draw)} --dsl data/mc_convergence-draw.dslb;
+r = system ${dsl_cli(draw)} --lmcode data/mc_convergence-draw.dslb;
 assert(r.code == 0);
 println("wrote images/mc_convergence.png");

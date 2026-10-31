@@ -40,7 +40,7 @@ let atm = pricing.price(c100, mm, a).price() + pricing.price(p100, mm, a).price(
 lmf.assert_close(atm, 0.8 * 100.0 * 0.25 * 0.5, 0.6);
 end _lmcode_
 savedsl(sim, "data/option_strategies-sim.dslb");
-r = system ${dsl_cli(sim)} --dsl data/option_strategies-sim.dslb;
+r = system ${dsl_cli(sim)} --lmcode data/option_strategies-sim.dslb;
 if (r.code != 0) { println(r.stdout); }
 assert(r.code == 0);
 
@@ -58,6 +58,6 @@ plot.cmd("unset multiplot");
 plot.close();
 end _lmcode_
 savedsl(draw, "data/option_strategies-draw.dslb");
-r = system ${dsl_cli(draw)} --dsl data/option_strategies-draw.dslb;
+r = system ${dsl_cli(draw)} --lmcode data/option_strategies-draw.dslb;
 assert(r.code == 0);
 println("wrote images/option_strategies.png");

@@ -1,5 +1,5 @@
 // lmfinance: QuantLib behind lmscript `_dsl_` schemas (market, instrument, model, pricing, risk, calibration).
-// Scripting only: the executable has no user-facing commands besides --dsl and the schema/version queries.
+// Scripting only: the executable has no user-facing commands besides --lmcode and the schema/version queries.
 #include <cmath>
 #include <cstdio>
 #include <fstream>
@@ -394,7 +394,7 @@ void register_host(dslvm::Registry &r, Host &h) {
   method(r, "LmfApi", "version", {}, "string", [](void *, Args &) { return Value::string("lmfinance " LMFINANCE_VERSION); });
 }
 
-const char *usage = "usage: lmfinance --version | --notices | --dsl-schema [--json] | --dsl-signatures | [--dry-run] --dsl FILE [FILE ...]\n"
+const char *usage = "usage: lmfinance --version | --notices | --lmcode-schema [--json] | --lmcode-signatures | [--dry-run] --lmcode FILE [FILE ...]\n"
                     "environment: LMFINANCE_MAX_MEMORY_MB  total memory budget in MiB (default 4096); a program that needs\n"
                     "             more stops with a run error (exit 3) instead of allocating\n";
 }  // namespace
@@ -413,7 +413,7 @@ int main(int argc, char **argv) {
     std::cout.write(reinterpret_cast<const char *>(lmfinance::embedded_notices), (std::streamsize)lmfinance::embedded_notices_size);
     return std::cout ? 0 : 4;
   }
-  if (argc >= 2 && a1 == "--dsl-schema") {
+  if (argc >= 2 && a1 == "--lmcode-schema") {
     if (argc == 2) { for (const auto &s : reg.signatures()) std::cout << s << "\n"; return std::cout ? 0 : 4; }
     if (argc == 3 && std::string(argv[2]) == "--json") {
       std::cout.write(reinterpret_cast<const char *>(lmfinance::embedded_schema), (std::streamsize)lmfinance::embedded_schema_size);
@@ -421,11 +421,11 @@ int main(int argc, char **argv) {
     }
     std::cerr << usage; return 2;
   }
-  if (argc == 2 && a1 == "--dsl-signatures") { for (const auto &s : reg.signatures()) std::cout << s << "\n"; return 0; }
+  if (argc == 2 && a1 == "--lmcode-signatures") { for (const auto &s : reg.signatures()) std::cout << s << "\n"; return 0; }
   int first = 2;
   const bool dry = argc >= 2 && a1 == "--dry-run";  // load and verify the bytecode, run nothing
   if (dry) first = 3;
-  if (argc <= first || std::string(argv[first - 1]) != "--dsl") { std::cerr << usage; return 2; }
+  if (argc <= first || std::string(argv[first - 1]) != "--lmcode") { std::cerr << usage; return 2; }
   for (int i = first; i < argc; i++)
     if (std::string(argv[i]).empty() || std::string(argv[i]).rfind("--", 0) == 0) { std::cerr << usage; return 2; }
   if (!membudget::configure("lmfinance", "LMFINANCE_MAX_MEMORY_MB")) { std::cerr << usage; return 2; }

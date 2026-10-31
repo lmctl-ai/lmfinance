@@ -27,7 +27,7 @@ lmf.save_text("data/var_tail.csv", tail);
 lmf.save_text("data/var_marks.csv", str(-var99 / 1000.0) + " " + str(-es99 / 1000.0) + "\n");
 end _lmcode_
 savedsl(sim, "data/var_tail-sim.dslb");
-r = system ${dsl_cli(sim)} --dsl data/var_tail-sim.dslb;
+r = system ${dsl_cli(sim)} --lmcode data/var_tail-sim.dslb;
 assert(r.code == 0);
 
 draw = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
@@ -44,6 +44,6 @@ plot.cmd("plot 'data/var_tail.csv' u 1:2 w filledcurves y1=0 lc rgb '#f4b6b6' t 
 plot.close();
 end _lmcode_
 savedsl(draw, "data/var_tail-draw.dslb");
-r = system ${dsl_cli(draw)} --dsl data/var_tail-draw.dslb;
+r = system ${dsl_cli(draw)} --lmcode data/var_tail-draw.dslb;
 assert(r.code == 0);
 println("wrote images/var_tail.png");

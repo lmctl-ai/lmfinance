@@ -10,7 +10,7 @@ let call = instrument.european_call(100.0, 1.0);
 risk.save_profile(call, m, pricing.analytic(), 60.0, 140.0, 161, "data/option_greeks.csv");
 end _lmcode_
 savedsl(calc, "data/option_greeks-calc.dslb");
-r = system ${dsl_cli(calc)} --dsl data/option_greeks-calc.dslb;
+r = system ${dsl_cli(calc)} --lmcode data/option_greeks-calc.dslb;
 assert(r.code == 0);
 
 draw = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
@@ -27,6 +27,6 @@ plot.cmd("plot 'data/option_greeks.csv' using 1:2 with lines lw 3 lc rgb '#d6272
 plot.close();
 end _lmcode_
 savedsl(draw, "data/option_greeks-draw.dslb");
-r = system ${dsl_cli(draw)} --dsl data/option_greeks-draw.dslb;
+r = system ${dsl_cli(draw)} --lmcode data/option_greeks-draw.dslb;
 assert(r.code == 0);
 println("wrote images/option_greeks.png");

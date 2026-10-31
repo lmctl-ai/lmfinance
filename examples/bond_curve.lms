@@ -25,5 +25,5 @@ lmf.assert_close(pricing.swap_npv(swap, curve), 0.0, 0.01);
 lmf.print("swap DV01 on 10mm: " + str(risk.swap_dv01(swap, curve)));
 end _lmcode_
 savedsl(p, out);
-r = system ${dsl_cli(p)} --dsl ${out};
+r = system ${dsl_cli(p)} --lmcode ${out};
 assert(r.code == 0);

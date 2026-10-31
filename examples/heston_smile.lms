@@ -25,5 +25,5 @@ let opt = instrument.european_call(100.0, 1.0);
 lmf.assert_close(pricing.price(opt, fitted, a).price(), pricing.price(opt, truth, a).price(), 0.01);
 end _lmcode_
 savedsl(p, out);
-r = system ${dsl_cli(p)} --dsl ${out};
+r = system ${dsl_cli(p)} --lmcode ${out};
 assert(r.code == 0);

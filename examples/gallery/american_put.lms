@@ -21,7 +21,7 @@ lmf.assert_close(pricing.price(instrument.american_put(100.0, 1.0), atm, pricing
 lmf.assert_close(pricing.price(instrument.european_put(100.0, 1.0), atm, pricing.analytic()).price(), 5.5735, 0.0001);
 end _lmcode_
 savedsl(sim, "data/american_put-sim.dslb");
-r = system ${dsl_cli(sim)} --dsl data/american_put-sim.dslb;
+r = system ${dsl_cli(sim)} --lmcode data/american_put-sim.dslb;
 assert(r.code == 0);
 
 draw = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
@@ -33,6 +33,6 @@ plot.cmd("plot 'data/american_put.csv' u 1:2:3 w filledcurves lc rgb '#f6d5d5' t
 plot.close();
 end _lmcode_
 savedsl(draw, "data/american_put-draw.dslb");
-r = system ${dsl_cli(draw)} --dsl data/american_put-draw.dslb;
+r = system ${dsl_cli(draw)} --lmcode data/american_put-draw.dslb;
 assert(r.code == 0);
 println("wrote images/american_put.png");

@@ -13,7 +13,7 @@
 
 `examples/gallery/*.lms` (28 programs) compute with lmfinance, write CSV/text into `data/` and draw with lmplot or lmdraw into `images/` in the
 *current directory*; the README shows copies in `docs/images/` (`examples/render-all.sh` runs them from a checkout and copies;
-PNG <= 300 KB, GIF <= 3 MB). All examples, old and new, end with `r = system ${dsl_cli(p)} --dsl ${out}; assert(r.code == 0);` so
+PNG <= 300 KB, GIF <= 3 MB). All examples, old and new, end with `r = system ${dsl_cli(p)} --lmcode ${out}; assert(r.code == 0);` so
 `lmctl autorun <raw github url>` produces output; README captions are those commands. Old examples `mkdir("build/examples")` first.
 - Stories: bootstrapped curve, call price/delta, option value melting onto its payoff (40-frame GIF), American vs European put
   (early-exercise premium), bond price-yield convexity with the duration tangent, parallel-shock P/L of a bond and a swap, Heston

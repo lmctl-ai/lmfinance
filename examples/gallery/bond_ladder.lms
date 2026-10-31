@@ -36,7 +36,7 @@ lmf.check(long_low < 30.0 / 1.05, "no coupon bond is longer than the zero");
 lmf.assert_close(pricing.bond_macaulay_duration(instrument.bond(100.0, 0.05, 10.0, 1), y), 8.1078, 0.0001);
 end _lmcode_
 savedsl(sim, "data/bond_ladder-sim.dslb");
-r = system ${dsl_cli(sim)} --dsl data/bond_ladder-sim.dslb;
+r = system ${dsl_cli(sim)} --lmcode data/bond_ladder-sim.dslb;
 if (r.code != 0) { println(r.stdout); }
 assert(r.code == 0);
 
@@ -55,7 +55,7 @@ plot.cmd("unset multiplot");
 plot.close();
 end _lmcode_
 savedsl(draw, "data/bond_ladder-draw.dslb");
-r = system ${dsl_cli(draw)} --dsl data/bond_ladder-draw.dslb;
+r = system ${dsl_cli(draw)} --lmcode data/bond_ladder-draw.dslb;
 if (r.code != 0) { println(r.stderr); }
 assert(r.code == 0);
 println("wrote images/bond_ladder.png");

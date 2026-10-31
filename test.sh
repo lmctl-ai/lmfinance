@@ -30,30 +30,31 @@ command -v ninja >/dev/null 2>&1 && GEN="-G Ninja"
 cmake -S . -B "$BUILD_DIR" $GEN -DCMAKE_BUILD_TYPE=Release >/dev/null
 cmake --build "$BUILD_DIR" >"$WORK/build.log" 2>&1 || { tail -40 "$WORK/build.log" >&2; fail "build"; }
 ok "build"
+python3 tests/check-host-flags.py schema/lmfinance.dsl.json "$HOST" || fail "hard host flag cutover"
 
 want_version="lmfinance $(sed -n 's/^project(lmfinance VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)"
 [ "$("$HOST" --version)" = "$want_version" ] || fail "--version is not exactly '$want_version'"
 ok "--version prints exactly '$want_version'"
 python3 scripts/gen-schema.py >/dev/null && git diff --quiet -- schema/lmfinance.dsl.json 2>/dev/null || [ ! -e .git ] || fail "schema/lmfinance.dsl.json is stale: run scripts/gen-schema.py"
 ok "schema matches the registrations in cpp/main.cpp"
-"$HOST" --dsl-schema --json >"$WORK/schema.json" || fail "embedded schema print"
+"$HOST" --lmcode-schema --json >"$WORK/schema.json" || fail "embedded schema print"
 cmp -s "$WORK/schema.json" schema/lmfinance.dsl.json || fail "embedded schema differs from schema/lmfinance.dsl.json"
-ok "--dsl-schema --json prints byte-identical embedded schema bytes"
-# The registry includes the vendored standard library (72 built-in signatures); the host schema declares only its own members.
-"$HOST" --dsl-signatures >"$WORK/registry-signatures.txt"
-"$LMSCRIPT" --dsl-signatures cpp/std/lmcode-std.schema.json >"$WORK/standard-signatures.txt"
+ok "--lmcode-schema --json prints byte-identical embedded schema bytes"
+# The registry includes the vendored standard library (206 built-in signatures); the host schema declares only its own members.
+"$HOST" --lmcode-signatures >"$WORK/registry-signatures.txt"
+"$LMSCRIPT" --lmcode-signatures cpp/std/lmcode-std.schema.json >"$WORK/standard-signatures.txt"
 python3 - "$WORK" <<'PYHOST' || fail "standard signature surface differs from the vendored std schema"
 from pathlib import Path
 import sys
 work = Path(sys.argv[1])
 registry = set((work / "registry-signatures.txt").read_text().splitlines())
 standard = set((work / "standard-signatures.txt").read_text().splitlines())
-assert len(standard) == 72, len(standard)
+assert len(standard) == 206, len(standard)
 assert standard <= registry, "registry lacks standard signatures"
 (work / "host-signatures.txt").write_bytes("".join(line + "\n" for line in sorted(registry - standard)).encode("utf-8"))
 PYHOST
-diff -u <("$LMSCRIPT" --dsl-signatures schema/lmfinance.dsl.json --without-std) "$WORK/host-signatures.txt" || fail "host/compiler signatures differ"
-ok "host registry matches compiler signatures (72 standard built-ins excluded)"
+diff -u <("$LMSCRIPT" --lmcode-signatures schema/lmfinance.dsl.json --without-std) "$WORK/host-signatures.txt" || fail "host/compiler signatures differ"
+ok "host registry matches compiler signatures (206 standard built-ins excluded)"
 "$HOST" --notices | grep -q "QuantLib" || fail "--notices missing third-party text"
 "$HOST" --notices >"$WORK/notices.txt" || fail "--notices"
 for n in "Makoto Matsumoto" "University of Chicago" "Boost C++ Libraries"; do
@@ -85,10 +86,10 @@ for src in tests/*.lms examples/*.lms; do
   "$LMSCRIPT" "$src" "build/$name.dslb" >"$WORK/$name.log" 2>&1 || { cat "$WORK/$name.log" >&2; fail "$name compile"; }
   n=$((n+1))
 done
-ok "$n programs compile as bytecode v5"
+ok "$n programs compile as bytecode v6"
 for src in tests/*.lms examples/*.lms; do
   name="$(basename "$src" .lms)"
-  "$HOST" --dsl "build/$name.dslb" >"$WORK/$name.out" 2>"$WORK/$name.err" || { cat "$WORK/$name.out" "$WORK/$name.err" >&2; fail "$name run"; }
+  "$HOST" --lmcode "build/$name.dslb" >"$WORK/$name.out" 2>"$WORK/$name.err" || { cat "$WORK/$name.out" "$WORK/$name.err" >&2; fail "$name run"; }
   grep -q '"ok": true' "$WORK/$name.out" || { cat "$WORK/$name.out" >&2; fail "$name did not report ok"; }
 done
 ok "$n programs run and pass their own assertions"
@@ -97,7 +98,7 @@ ok "$n programs run and pass their own assertions"
 for f in build/examples/*.csv; do echo "$(sha "$f") $f"; done >"$WORK/before.txt"
 for src in examples/*.lms; do
   name="$(basename "$src" .lms)"
-  "$HOST" --dsl "build/$name.dslb" >/dev/null 2>&1 || fail "$name rerun"
+  "$HOST" --lmcode "build/$name.dslb" >/dev/null 2>&1 || fail "$name rerun"
 done
 for f in build/examples/*.csv; do echo "$(sha "$f") $f"; done >"$WORK/after.txt"
 cmp -s "$WORK/before.txt" "$WORK/after.txt" || fail "result files differ on rerun"
@@ -119,7 +120,7 @@ end _dsl_
 savedsl(p, "$WORK/std.dslb");
 LMS
 "$LMSCRIPT" "$WORK/std.lms" >/dev/null 2>"$WORK/std.cerr" || { cat "$WORK/std.cerr" >&2; fail "std program compile"; }
-"$HOST" --dsl "$WORK/std.dslb" >"$WORK/std.raw" 2>"$WORK/std.err" || fail "std program run: $(cat "$WORK/std.err")"
+"$HOST" --lmcode "$WORK/std.dslb" >"$WORK/std.raw" 2>"$WORK/std.err" || fail "std program run: $(cat "$WORK/std.err")"
 python3 - "$WORK/std.raw" <<'PYRUN' || fail "std program emitted unexpected output"
 from pathlib import Path
 import sys
@@ -146,7 +147,7 @@ end _dsl_
 savedsl(p, "$WORK/$1.dslb");
 LMS
   "$LMSCRIPT" "$WORK/$1.lms" >/dev/null 2>"$WORK/$1.cerr" || { cat "$WORK/$1.cerr" >&2; fail "$1 compile"; }
-  set +e; out="$("$HOST" --dsl "$WORK/$1.dslb" 2>/dev/null)"; code=$?; set -e
+  set +e; out="$("$HOST" --lmcode "$WORK/$1.dslb" 2>/dev/null)"; code=$?; set -e
   [ "$code" = 3 ] || fail "$1: exit code $code, expected 3 ($out)"
   echo "$out" | grep -q "$3" || fail "$1: message lacks '$3': $out"
 }
@@ -189,9 +190,9 @@ end _dsl_
 savedsl(p, "$WORK/dry.dslb");
 LMS
 "$LMSCRIPT" "$WORK/dry.lms" >/dev/null 2>&1 || fail "dry-run program compile"
-"$HOST" --dry-run --dsl "$WORK/dry.dslb" | grep -q '"ok": true' || fail "dry run did not report ok"
+"$HOST" --dry-run --lmcode "$WORK/dry.dslb" | grep -q '"ok": true' || fail "dry run did not report ok"
 [ ! -e "$WORK/dry.txt" ] || fail "--dry-run executed the program"
-"$HOST" --dsl "$WORK/dry.dslb" >/dev/null && [ -e "$WORK/dry.txt" ] || fail "program did not run without --dry-run"
+"$HOST" --lmcode "$WORK/dry.dslb" >/dev/null && [ -e "$WORK/dry.txt" ] || fail "program did not run without --dry-run"
 ok "--dry-run verifies without running"
 
 # README gallery: every linked example and image exists, images are valid PNG/GIF within the size limits.
@@ -253,26 +254,26 @@ end _dsl_
 savedsl(p, "$WORK/runaway.dslb");
 LMS
 "$LMSCRIPT" "$WORK/runaway.lms" >/dev/null || fail "runaway.lms compile"
-set +e; out="$(LMFINANCE_MAX_MEMORY_MB=64 "$HOST" --dsl "$WORK/runaway.dslb" 2>"$WORK/runaway.err")"; code=$?; set -e
+set +e; out="$(LMFINANCE_MAX_MEMORY_MB=64 "$HOST" --lmcode "$WORK/runaway.dslb" 2>"$WORK/runaway.err")"; code=$?; set -e
 [ "$code" = 3 ] || fail "runaway loop under LMFINANCE_MAX_MEMORY_MB=64: exit $code, expected 3 ($out)"
 echo "$out" | grep -q "memory budget exceeded" || fail "runaway loop: JSON lacks the budget message: $out"
 grep -q "LMFINANCE_MAX_MEMORY_MB" "$WORK/runaway.err" || fail "runaway loop: no budget message on stderr"
 printf 'p = _dsl_ cli="lmfinance";\nlet r = pricing.price(instrument.european_call(100.0, 1.0), model.black_scholes(100.0, 0.05, 0.0, 0.2), pricing.monte_carlo(100000000, 7));\nend _dsl_\nsavedsl(p, "%s");\n' \
   "$WORK/bigmc.dslb" >"$WORK/bigmc.lms"
 "$LMSCRIPT" "$WORK/bigmc.lms" >/dev/null || fail "bigmc.lms compile"
-set +e; out="$(LMFINANCE_MAX_MEMORY_MB=64 "$HOST" --dsl "$WORK/bigmc.dslb" 2>/dev/null)"; code=$?; set -e
+set +e; out="$(LMFINANCE_MAX_MEMORY_MB=64 "$HOST" --lmcode "$WORK/bigmc.dslb" 2>/dev/null)"; code=$?; set -e
 [ "$code" = 3 ] && echo "$out" | grep -q "2289 MiB more requested" || fail "1e8 Monte Carlo paths under LMFINANCE_MAX_MEMORY_MB=64: exit $code ($out)"
-set +e; LMFINANCE_MAX_MEMORY_MB=-5 "$HOST" --dsl "$WORK/runaway.dslb" >/dev/null 2>"$WORK/badenv.err"; code=$?; set -e
+set +e; LMFINANCE_MAX_MEMORY_MB=-5 "$HOST" --lmcode "$WORK/runaway.dslb" >/dev/null 2>"$WORK/badenv.err"; code=$?; set -e
 [ "$code" = 2 ] && grep -q "positive whole number" "$WORK/badenv.err" || fail "bad LMFINANCE_MAX_MEMORY_MB: exit $code"
 if [ "$UNAME_S" = Linux ]; then
-  set +e; out="$(ulimit -v 6291456; "$HOST" --dsl "$WORK/runaway.dslb" 2>/dev/null)"; code=$?; set -e
+  set +e; out="$(ulimit -v 6291456; "$HOST" --lmcode "$WORK/runaway.dslb" 2>/dev/null)"; code=$?; set -e
   [ "$code" = 3 ] && echo "$out" | grep -q "limit 4096 MiB" || fail "runaway loop with the default budget under ulimit -v 6 GiB: exit $code ($out)"
   ok "memory budget: runaway loop stops at 64 MiB and at the default 4096 MiB (under ulimit -v 6 GiB), Monte Carlo pre-check"
 else
   ok "memory budget: runaway loop and Monte Carlo pre-check stop at LMFINANCE_MAX_MEMORY_MB=64 (default-budget run is Linux-only)"
 fi
 
-set +e; "$HOST" --dsl "$WORK/does-not-exist.dslb" >/dev/null 2>&1; code=$?; set -e
+set +e; "$HOST" --lmcode "$WORK/does-not-exist.dslb" >/dev/null 2>&1; code=$?; set -e
 [ "$code" = 3 ] || fail "missing bytecode exit code $code, expected 3"
 set +e; "$HOST" >/dev/null 2>&1; code=$?; set -e
 [ "$code" = 2 ] || fail "usage exit code $code, expected 2"

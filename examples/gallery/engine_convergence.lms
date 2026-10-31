@@ -32,7 +32,7 @@ lmf.save_text("data/conv_mc.csv", mc);
 lmf.assert_close(pricing.price(call, m, pricing.binomial(2560)).price(), exact, 0.001);
 end _lmcode_
 savedsl(sim, "data/engine_convergence-sim.dslb");
-r = system ${dsl_cli(sim)} --dsl data/engine_convergence-sim.dslb;
+r = system ${dsl_cli(sim)} --lmcode data/engine_convergence-sim.dslb;
 assert(r.code == 0);
 
 draw = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
@@ -44,6 +44,6 @@ plot.cmd("plot 'data/conv_tree.csv' u 1:2 w lp lw 2 pt 7 lc rgb '#1f77b4' t 'bin
 plot.close();
 end _lmcode_
 savedsl(draw, "data/engine_convergence-draw.dslb");
-r = system ${dsl_cli(draw)} --dsl data/engine_convergence-draw.dslb;
+r = system ${dsl_cli(draw)} --lmcode data/engine_convergence-draw.dslb;
 assert(r.code == 0);
 println("wrote images/engine_convergence.png");

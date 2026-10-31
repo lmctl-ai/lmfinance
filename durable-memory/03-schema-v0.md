@@ -6,7 +6,7 @@ Seven contexts, each a type with no state of its own (the host object behind the
 `CurveBuilder`, `Option`, `Bond`, `Swap`, `CapFloor`, `Swaption`, `Series`, `Model`, `Engine`, `Result`, `HestonFit`.
 `schema/lmfinance.dsl.json` is generated from the `method(r, ...)` registrations in `cpp/main.cpp`
 by `scripts/gen-schema.py`; `test.sh` fails when it is stale and diffs it against `lmscript
---dsl-signatures`. The DSL has `pow`, `sqrt`, `abs`, `str`, `float`, `for (i in range(a, b))` and
+--lmcode-signatures`. The DSL has `pow`, `sqrt`, `abs`, `str`, `float`, `for (i in range(a, b))` and
 string `+`, but no `exp`/`log` (use `pow(2.718281828459045, x)`), no ternary and no bool asserts
 (hence `lmf.check(bool, message)`).
 

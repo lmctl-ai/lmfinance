@@ -81,7 +81,7 @@ Linux downloads require **dynamic glibc >= 2.35** (Ubuntu 22.04 or newer).
 
 It is a scripting host,
 not a command-line tool: write an [lmscript](https://lmctl.com/tools/lmscript/skill.html) `_dsl_`
-block, compile it, run it with `lmfinance --dsl`. No Python or Boost shared libraries are needed. Linux uses system glibc;
+block, compile it, run it with `lmfinance --lmcode`. No Python or Boost shared libraries are needed. Linux uses system glibc;
 QuantLib and the GCC C++ runtimes are static.
 
 ```
@@ -94,7 +94,7 @@ lmf.print("price " + str(r.price()) + " delta " + str(r.delta()));
 lmf.assert_close(r.price(), 10.4506, 0.00005);
 end _lmcode_
 savedsl(p, "bs.dslb");
-system ${dsl_cli(p)} --dsl bs.dslb;
+system ${dsl_cli(p)} --lmcode bs.dslb;
 ```
 
 `lmscript bs.lms` finds `lmfinance` on `PATH` or downloads the release binary for your platform on

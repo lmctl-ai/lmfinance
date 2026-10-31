@@ -12,7 +12,7 @@ let curve = market.bootstrap_curve()
 curve.save_csv("data/yield_curve.csv", 30.0, 240);
 end _lmcode_
 savedsl(calc, "data/yield_curve-calc.dslb");
-r = system ${dsl_cli(calc)} --dsl data/yield_curve-calc.dslb;
+r = system ${dsl_cli(calc)} --lmcode data/yield_curve-calc.dslb;
 assert(r.code == 0);
 
 draw = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
@@ -26,6 +26,6 @@ plot.cmd("plot 'data/yield_curve.csv' using 1:2 with lines lw 3 lc rgb '#1f77b4'
 plot.close();
 end _lmcode_
 savedsl(draw, "data/yield_curve-draw.dslb");
-r = system ${dsl_cli(draw)} --dsl data/yield_curve-draw.dslb;
+r = system ${dsl_cli(draw)} --lmcode data/yield_curve-draw.dslb;
 assert(r.code == 0);
 println("wrote images/yield_curve.png");

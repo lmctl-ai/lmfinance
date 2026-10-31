@@ -28,7 +28,7 @@ let skew = calibration.implied_vol(o80, bs, a, pricing.price(o80, hn, a).price()
 lmf.check(skew > 0.04, "negative correlation: downside skew");
 end _lmcode_
 savedsl(sim, "data/vol_smile-sim.dslb");
-r = system ${dsl_cli(sim)} --dsl data/vol_smile-sim.dslb;
+r = system ${dsl_cli(sim)} --lmcode data/vol_smile-sim.dslb;
 assert(r.code == 0);
 
 draw = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
@@ -40,6 +40,6 @@ plot.cmd("plot 'data/vol_smile.csv' u 1:2 w lp lw 3 pt 7 lc rgb '#d62728' t 'rho
 plot.close();
 end _lmcode_
 savedsl(draw, "data/vol_smile-draw.dslb");
-r = system ${dsl_cli(draw)} --dsl data/vol_smile-draw.dslb;
+r = system ${dsl_cli(draw)} --lmcode data/vol_smile-draw.dslb;
 assert(r.code == 0);
 println("wrote images/vol_smile.png");

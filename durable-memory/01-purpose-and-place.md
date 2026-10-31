@@ -4,8 +4,8 @@ lmfinance is target 2 of the *scripted scientific libraries* family (`../../simu
 procedure in `../../simulation/PROCEDURE.md`, template lmnum): QuantLib statically linked into one
 executable and driven from lmscript `_dsl_` bytecode through an embedded schema.
 
-- **Scripting only**: `--dsl [--dry-run]`, `--version` (exactly `lmfinance X.Y.Z`), `--notices`,
-  `--dsl-schema [--json]`, `--dsl-signatures`; exit codes 2 usage, 3 load/run error.
+- **Scripting only**: `--lmcode [--dry-run]`, `--version` (exactly `lmfinance X.Y.Z`), `--notices`,
+  `--lmcode-schema [--json]`, `--lmcode-signatures`; exit codes 2 usage, 3 load/run error.
 - **Namespaces** follow `simulation/brainstorm.txt`: `market`, `instrument`, `model`, `pricing`,
   `risk`, `calibration`, plus `lmf` for asserts and output. Each is a context object of the schema.
 - **Design**: the host objects (`Curve`, `Option`, `Bond`, `Swap`, `Model`, `Engine`, `Result`,
