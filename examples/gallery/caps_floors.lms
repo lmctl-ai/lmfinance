@@ -37,10 +37,9 @@ lmf.check(pricing.capfloor_npv(instrument.cap(notional, 0.15, 5.0), curve, 0.3) 
 lmf.save_text("data/caps_atm.csv", str(100.0 * atm) + " " + str(cap_atm / notional * 100.0) + "\n");
 lmf.print("ATM cap = floor = " + str(cap_atm) + " on 1 million notional");
 end _lmcode_
-savedsl(sim, "data/caps_floors-sim.dslb");
-r = system ${dsl_cli(sim)} --lmcode data/caps_floors-sim.dslb;
-if (r.code != 0) { println(r.stdout); }
-assert(r.code == 0);
+r = run_lmcode(sim);
+if (!r.ok) { println(r.message); }
+assert(r.ok);
 
 draw = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
 plot.png("images/caps_floors.png", 1000, 480);
@@ -55,8 +54,7 @@ plot.cmd("plot 30 w l dt 2 lw 1.5 lc rgb '#555555' notitle, 'data/caps_floors.cs
 plot.cmd("unset multiplot");
 plot.close();
 end _lmcode_
-savedsl(draw, "data/caps_floors-draw.dslb");
-r = system ${dsl_cli(draw)} --lmcode data/caps_floors-draw.dslb;
-if (r.code != 0) { println(r.stderr); }
-assert(r.code == 0);
+r = run_lmcode(draw);
+if (!r.ok) { println(json_stringify(r)); }
+assert(r.ok);
 println("wrote images/caps_floors.png");

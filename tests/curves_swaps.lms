@@ -1,5 +1,4 @@
 # Yield curves and interest rate swaps.
-out = ARGV.len() > 0 ? ARGV[0] : "build/curves_swaps.dslb";
 p = _lmcode_ cli="lmfinance";
 market.set_date("2024-01-02");
 lmf.check(market.date() == "2024-01-02", "evaluation date");
@@ -45,4 +44,6 @@ lmf.check(d > 0.0, "payer gains when rates rise");
 lmf.assert_close(d, 1000000.0 * 4.5 * 0.0001, 40.0);
 lmf.assert_close(risk.swap_dv01(instrument.swap(1000000.0, 0.04, 5.0).receiver(), cu), -d, 0.000001);
 end _lmcode_
-savedsl(p, out);
+r = run_lmcode(p);
+println(json_stringify(r));
+require(r.ok, "curves_swaps failed");

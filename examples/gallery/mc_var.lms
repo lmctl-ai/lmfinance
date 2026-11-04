@@ -16,10 +16,9 @@ shocks.col(0).save_csv("data/mc_var_z1.csv");
 shocks.col(1).save_csv("data/mc_var_z2.csv");
 num.assert_close(shocks.col(0).std(), 1.0, 0.05);
 end _lmcode_
-savedsl(rng, "data/mc_var-rng.dslb");
-r = system ${dsl_cli(rng)} --lmcode data/mc_var-rng.dslb;
-if (r.code != 0) { println(r.stdout); }
-assert(r.code == 0);
+r = run_lmcode(rng);
+if (!r.ok) { println(r.message); }
+assert(r.ok);
 
 sim = _lmcode_ cli="lmfinance" install="github:lmctl-ai/lmfinance@latest";
 let a = pricing.analytic();
@@ -58,10 +57,9 @@ lmf.check(var99 > 0.5 * dn99, "but not by more than a factor of two");
 lmf.check(series.mean() > -0.2 * var99 && series.mean() < 0.2 * var99, "the P/L distribution is centred");
 lmf.save_text("data/mc_var_marks.csv", str(-var99) + " " + str(-es99) + " " + str(-dn99) + "\n");
 end _lmcode_
-savedsl(sim, "data/mc_var-sim.dslb");
-r = system ${dsl_cli(sim)} --lmcode data/mc_var-sim.dslb;
-if (r.code != 0) { println(r.stdout); }
-assert(r.code == 0);
+r = run_lmcode(sim);
+if (!r.ok) { println(r.message); }
+assert(r.ok);
 
 draw = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
 plot.png("images/mc_var.png", 900, 560);
@@ -76,8 +74,7 @@ plot.cmd("set label 1 sprintf('VaR 99%% = %.0f', -v) at v, graph 0.63 center tc 
 plot.cmd("plot 'data/mc_var_pnl.csv' u (bin($1, 60)):(1.0) smooth frequency w boxes lc rgb '#6baed6' t 'P/L histogram'");
 plot.close();
 end _lmcode_
-savedsl(draw, "data/mc_var-draw.dslb");
-r = system ${dsl_cli(draw)} --lmcode data/mc_var-draw.dslb;
-if (r.code != 0) { println(r.stderr); }
-assert(r.code == 0);
+r = run_lmcode(draw);
+if (!r.ok) { println(json_stringify(r)); }
+assert(r.ok);
 println("wrote images/mc_var.png");

@@ -11,9 +11,8 @@ let curve = market.bootstrap_curve()
   .swap("2Y", 0.0350).swap("5Y", 0.0400).swap("10Y", 0.0420).swap("30Y", 0.0410).build();
 curve.save_csv("data/yield_curve.csv", 30.0, 240);
 end _lmcode_
-savedsl(calc, "data/yield_curve-calc.dslb");
-r = system ${dsl_cli(calc)} --lmcode data/yield_curve-calc.dslb;
-assert(r.code == 0);
+r = run_lmcode(calc);
+assert(r.ok);
 
 draw = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
 plot.png("images/yield_curve.png", 900, 600);
@@ -25,7 +24,6 @@ plot.cmd("set key bottom right box opaque");
 plot.cmd("plot 'data/yield_curve.csv' using 1:2 with lines lw 3 lc rgb '#1f77b4' title 'zero rate', '' using 1:4 with lines lw 3 lc rgb '#d62728' title 'forward rate'");
 plot.close();
 end _lmcode_
-savedsl(draw, "data/yield_curve-draw.dslb");
-r = system ${dsl_cli(draw)} --lmcode data/yield_curve-draw.dslb;
-assert(r.code == 0);
+r = run_lmcode(draw);
+assert(r.ok);
 println("wrote images/yield_curve.png");

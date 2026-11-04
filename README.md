@@ -80,8 +80,8 @@ Each command runs the example from any empty directory: lmfinance computes, [lmp
 Linux downloads require **dynamic glibc >= 2.35** (Ubuntu 22.04 or newer).
 
 It is a scripting host,
-not a command-line tool: write an [lmscript](https://lmctl.com/tools/lmscript/skill.html) `_dsl_`
-block, compile it, run it with `lmfinance --lmcode`. No Python or Boost shared libraries are needed. Linux uses system glibc;
+not a command-line tool: write an [lmscript](https://lmctl.com/tools/lmscript/skill.html) `_lmcode_`
+block and run it; lmscript compiles the block and hands the program to `lmfinance --lmcode` itself. No Python or Boost shared libraries are needed. Linux uses system glibc;
 QuantLib and the GCC C++ runtimes are static.
 
 ```
@@ -93,8 +93,8 @@ let r = pricing.price(call, m, pricing.analytic());
 lmf.print("price " + str(r.price()) + " delta " + str(r.delta()));
 lmf.assert_close(r.price(), 10.4506, 0.00005);
 end _lmcode_
-savedsl(p, "bs.dslb");
-system ${dsl_cli(p)} --lmcode bs.dslb;
+r = run_lmcode(p);
+require(r.ok, "pricing run failed");
 ```
 
 `lmscript bs.lms` finds `lmfinance` on `PATH` or downloads the release binary for your platform on
@@ -120,7 +120,7 @@ with `market.set_date`.
 Conventions and details: [durable-memory/03-schema-v0.md](durable-memory/03-schema-v0.md).
 
 Combine it with other hosts in one script: [examples/gallery/](examples/gallery) bootstraps curves, prices and profiles options with lmfinance and draws them with [lmplot](https://github.com/lmctl-ai/lmplot)
-(two `_dsl_` blocks, two hosts).
+(two `_lmcode_ blocks, two hosts).
 
 ## Examples
 

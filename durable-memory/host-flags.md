@@ -3,7 +3,7 @@
 Only --lmcode, --lmcode-schema and --lmcode-signatures select the host language
 protocol; original retired modes were watched fail the refusal controls before
 rename. Exact raw metadata, host-only signatures and new execution preserve
-existing diagnostics. DSLB magic, .dslb paths and numerical APIs are unchanged.
+existing diagnostics. DSLB magic stays v6 internally (checked on the private program files the host receives); no .dslb file is written by the repo any more. Numerical APIs are unchanged.
 
 The SDK is refreshed through sync-sdk.sh from 20325f7. Current source compiler
 qualification checks v6/206-member behavior instead of package-version metadata.

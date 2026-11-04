@@ -1,10 +1,11 @@
-// lmfinance: QuantLib behind lmscript `_dsl_` schemas (market, instrument, model, pricing, risk, calibration).
+// lmfinance: QuantLib behind lmscript `_lmcode_` schemas (market, instrument, model, pricing, risk, calibration).
 // Scripting only: the executable has no user-facing commands besides --lmcode and the schema/version queries.
 #include <cmath>
 #include <cstdio>
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -423,27 +424,75 @@ int main(int argc, char **argv) {
   }
   if (argc == 2 && a1 == "--lmcode-signatures") { for (const auto &s : reg.signatures()) std::cout << s << "\n"; return 0; }
   int first = 2;
-  const bool dry = argc >= 2 && a1 == "--dry-run";  // load and verify the bytecode, run nothing
+  bool dry = argc >= 2 && a1 == "--dry-run";  // accepted for symmetry: every result lands in files/tables anyway
   if (dry) first = 3;
-  if (argc <= first || std::string(argv[first - 1]) != "--lmcode") { std::cerr << usage; return 2; }
-  for (int i = first; i < argc; i++)
-    if (std::string(argv[i]).empty() || std::string(argv[i]).rfind("--", 0) == 0) { std::cerr << usage; return 2; }
-  if (!membudget::configure("lmfinance", "LMFINANCE_MAX_MEMORY_MB")) { std::cerr << usage; return 2; }
+  // --lmcode: one invocation envelope (lmcode-cpp InvocationResults). Exit 0 success,
+  // 2 cli, 3 load/run, 4 application (APP_FAIL) or output failure.
+  if (argc <= first || std::string(argv[first - 1]) != "--lmcode") {
+    std::cerr << usage;
+    return dslvm::failure_frame("cli", dslvm::Error("CLI_USAGE", "expected [--dry-run] --lmcode FILE [FILE ...]"));
+  }
+  std::vector<std::string> files;
+  for (int i = first; i < argc; i++) {
+    if (std::string(argv[i]).empty() || std::string(argv[i]).rfind("--", 0) == 0) {
+      std::cerr << usage;
+      return dslvm::failure_frame("cli", dslvm::Error("CLI_USAGE", "invalid program file argument"));
+    }
+    files.push_back(argv[i]);
+  }
+  if (!membudget::configure("lmfinance", "LMFINANCE_MAX_MEMORY_MB")) {
+    std::cerr << usage;
+    return dslvm::failure_frame("cli", dslvm::Error("CLI_USAGE", "invalid LMFINANCE_MAX_MEMORY_MB"));
+  }
+  // Dry mode is invocation-wide: run_lmcode supplies it in LMCODE_INVOCATION_FILE metadata; the
+  // standalone --dry-run flag requests the same mode when no metadata is present.
+  std::optional<dslvm::InvocationResults> holder;
+  try {
+    if (dry && !std::getenv("LMCODE_INVOCATION_FILE")) holder.emplace(dslvm::InvocationResults::from_command(files, true));
+    else holder.emplace(dslvm::InvocationResults::from_command(files));
+  } catch (const dslvm::Error &e) {
+    std::cerr << usage;
+    return dslvm::failure_frame("cli", e);
+  }
+  auto &results = *holder;
+  if (dry && !results.dry()) {
+    std::cerr << usage;
+    return dslvm::failure_frame("cli", dslvm::Error("CLI_USAGE", "--dry-run contradicts real-mode invocation metadata"));
+  }
   const std::string schema(reinterpret_cast<const char *>(lmfinance::embedded_schema), lmfinance::embedded_schema_size);
   dslvm::Context context;
   for (const char *n : {"market", "instrument", "model", "pricing", "risk", "calibration", "lmf"}) context.set(n, &host);
-  std::vector<dslvm::Program> programs;
-  for (int i = first; i < argc; i++) {
-    try { programs.push_back(dslvm::Program::load(dslvm::read_file(argv[i]), schema, reg)); }
-    catch (const dslvm::Error &e) { return dslvm::report_error("load", e); }
-    catch (const std::exception &e) { return dslvm::report_error("load", dslvm::Error(e.what())); }
+  // A program that exhausted the memory budget still needs a failure frame, and the market state it
+  // built stays allocated: this reserve is released first, so recording the failure cannot throw.
+  auto reserve = std::make_unique<char[]>(1 << 20);
+  dslvm::ResultContract contract;
+  // Load and verify every file first: a bad later file must not leave earlier tables behind.
+  std::vector<std::pair<size_t, dslvm::Program>> programs;
+  try { contract = dslvm::ResultContract::from_schema(schema); }
+  catch (const dslvm::Error &e) { reserve.reset(); results.fail(std::nullopt, "load", e); return results.write_frame(std::cout); }
+  for (const auto &part : results.registrations()) {
+    try { programs.emplace_back(part.index, dslvm::Program::load(dslvm::read_file(part.file), schema, reg)); }
+    catch (const dslvm::Error &e) { reserve.reset(); results.fail(part.index, "load", e); return results.write_frame(std::cout); }
+    catch (const std::exception &e) { reserve.reset(); results.fail(part.index, "load", dslvm::Error(e.what())); return results.write_frame(std::cout); }
   }
-  if (dry) { dslvm::report_ok(); return 0; }
-  for (const auto &p : programs) {
-    try { p.run(context, reg); }
-    catch (const dslvm::Error &e) { return dslvm::report_error("run", e); }
-    catch (const std::exception &e) { return dslvm::report_error("run", dslvm::Error(e.what())); }  // budget in the VM
-    dslvm::report_ok();
+  for (auto &[index, program] : programs) {
+    try {
+      results.select(index, reg, contract);
+      // A dry invocation validates and loads every program but runs none: programs write tables and
+      // price books, and a valuation has no effect-free mode.
+      if (!results.dry()) program.run(context, reg);
+      results.complete(index);
+    } catch (const dslvm::Error &e) {
+      reserve.reset();
+      std::cerr << e.what() << "\n";
+      results.fail(index, e.code == "APP_FAIL" ? "app" : "run", e);
+      break;
+    } catch (const std::exception &e) {  // the memory budget inside the VM
+      reserve.reset();
+      std::cerr << e.what() << "\n";
+      results.fail(index, "run", dslvm::Error(e.what()));
+      break;
+    }
   }
-  return 0;
+  return results.write_frame(std::cout);
 }

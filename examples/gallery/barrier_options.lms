@@ -55,10 +55,9 @@ let dout = pricing.price(instrument.barrier_put(90.0, 1.0, 70.0, "down-out"), m,
 lmf.assert_close(di + dout, put, 0.000001);
 lmf.print("90 put " + str(put) + " = down-and-in (70) " + str(di) + " + down-and-out " + str(dout));
 end _lmcode_
-savedsl(sim, "data/barrier_options-sim.dslb");
-r = system ${dsl_cli(sim)} --lmcode data/barrier_options-sim.dslb;
-if (r.code != 0) { println(r.stdout); }
-assert(r.code == 0);
+r = run_lmcode(sim);
+if (!r.ok) { println(r.message); }
+assert(r.ok);
 
 draw = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
 plot.png("images/barrier_options.png", 1000, 480);
@@ -71,8 +70,7 @@ plot.cmd("plot 'data/barrier_vol.csv' u 1:2 w l lw 2.5 lc rgb '#555555' t 'vanil
 plot.cmd("unset multiplot");
 plot.close();
 end _lmcode_
-savedsl(draw, "data/barrier_options-draw.dslb");
-r = system ${dsl_cli(draw)} --lmcode data/barrier_options-draw.dslb;
-if (r.code != 0) { println(r.stderr); }
-assert(r.code == 0);
+r = run_lmcode(draw);
+if (!r.ok) { println(json_stringify(r)); }
+assert(r.ok);
 println("wrote images/barrier_options.png");

@@ -1,5 +1,4 @@
 # Fixed income: price, yield, duration and convexity against closed forms; curve pricing and DV01.
-out = ARGV.len() > 0 ? ARGV[0] : "build/bonds.dslb";
 p = _lmcode_ cli="lmfinance";
 # a 10-year 5% annual-coupon bond priced at a 5% yield is worth par; Macaulay duration (1+y)/y * (1 - (1+y)^-n) = 8.1078
 let b = instrument.bond(100.0, 0.05, 10.0, 1);
@@ -40,4 +39,6 @@ let dv01 = risk.bond_dv01(b, flat);
 let y = pricing.bond_yield(b, pricing.bond_clean_price(b, flat));
 lmf.assert_close(dv01, pricing.bond_macaulay_duration(b, y) * pricing.bond_clean_price(b, flat) * 0.0001, 0.0005);
 end _lmcode_
-savedsl(p, out);
+r = run_lmcode(p);
+println(json_stringify(r));
+require(r.ok, "bonds failed");

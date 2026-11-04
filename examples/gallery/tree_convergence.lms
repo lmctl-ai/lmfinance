@@ -30,10 +30,9 @@ let odd = pricing.price(call, m, pricing.binomial_tree("crr", 51)).price();
 let even = pricing.price(call, m, pricing.binomial_tree("crr", 50)).price();
 lmf.check((odd - exact) * (even - exact) < 0.0, "consecutive CRR step counts bracket the closed form");
 end _lmcode_
-savedsl(sim, "data/tree_convergence-sim.dslb");
-r = system ${dsl_cli(sim)} --lmcode data/tree_convergence-sim.dslb;
-if (r.code != 0) { println(r.stdout); }
-assert(r.code == 0);
+r = run_lmcode(sim);
+if (!r.ok) { println(r.message); }
+assert(r.ok);
 
 draw = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
 plot.png("images/tree_convergence.png", 1000, 480);
@@ -46,8 +45,7 @@ plot.cmd("plot 'data/tree_convergence.csv' u 1:(abs($2-$6)) w lp pt 7 ps 0.5 lw 
 plot.cmd("unset multiplot");
 plot.close();
 end _lmcode_
-savedsl(draw, "data/tree_convergence-draw.dslb");
-r = system ${dsl_cli(draw)} --lmcode data/tree_convergence-draw.dslb;
-if (r.code != 0) { println(r.stderr); }
-assert(r.code == 0);
+r = run_lmcode(draw);
+if (!r.ok) { println(json_stringify(r)); }
+assert(r.ok);
 println("wrote images/tree_convergence.png");

@@ -68,10 +68,9 @@ w = w + "5 " + str(level) + " " + str(level + unexplained) + " unexplained\n";
 w = w + "6 0 " + str(total_actual) + " actual\n";
 lmf.save_text("data/waterfall.csv", w);
 end _lmcode_
-savedsl(sim, "data/portfolio_waterfall-sim.dslb");
-r = system ${dsl_cli(sim)} --lmcode data/portfolio_waterfall-sim.dslb;
-if (r.code != 0) { println(r.stdout); }
-assert(r.code == 0);
+r = run_lmcode(sim);
+if (!r.ok) { println(r.message); }
+assert(r.ok);
 
 draw = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
 plot.png("images/portfolio_waterfall.png", 1000, 500);
@@ -85,8 +84,7 @@ plot.cmd("plot 'data/waterfall_positions.csv' u 2 ls 1 t 'delta', '' u 3 ls 2 t 
 plot.cmd("unset multiplot");
 plot.close();
 end _lmcode_
-savedsl(draw, "data/portfolio_waterfall-draw.dslb");
-r = system ${dsl_cli(draw)} --lmcode data/portfolio_waterfall-draw.dslb;
-if (r.code != 0) { println(r.stderr); }
-assert(r.code == 0);
+r = run_lmcode(draw);
+if (!r.ok) { println(json_stringify(r)); }
+assert(r.ok);
 println("wrote images/portfolio_waterfall.png");

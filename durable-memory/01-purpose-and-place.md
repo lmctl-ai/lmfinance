@@ -2,7 +2,7 @@
 
 lmfinance is target 2 of the *scripted scientific libraries* family (`../../simulation/ROADMAP.md`,
 procedure in `../../simulation/PROCEDURE.md`, template lmnum): QuantLib statically linked into one
-executable and driven from lmscript `_dsl_` bytecode through an embedded schema.
+executable and driven from lmscript `_lmcode_` programs through an embedded schema.
 
 - **Scripting only**: `--lmcode [--dry-run]`, `--version` (exactly `lmfinance X.Y.Z`), `--notices`,
   `--lmcode-schema [--json]`, `--lmcode-signatures`; exit codes 2 usage, 3 load/run error.

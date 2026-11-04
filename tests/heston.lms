@@ -1,5 +1,4 @@
 # Heston stochastic volatility: the Black-Scholes limit, put-call parity, and recovering parameters by calibration.
-out = ARGV.len() > 0 ? ARGV[0] : "build/heston.dslb";
 p = _lmcode_ cli="lmfinance";
 let a = pricing.analytic();
 let call = instrument.european_call(100.0, 1.0);
@@ -42,4 +41,6 @@ lmf.assert_close(fitted.param("sigma"), 0.5, 0.05);
 let opt = instrument.european_call(90.0, 1.0);
 lmf.assert_close(pricing.price(opt, fitted, a).price(), pricing.price(opt, truth, a).price(), 0.01);
 end _lmcode_
-savedsl(p, out);
+r = run_lmcode(p);
+println(json_stringify(r));
+require(r.ok, "heston failed");

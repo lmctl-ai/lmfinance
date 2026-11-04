@@ -27,9 +27,8 @@ let hn = model.heston(100.0, 0.03, 0.0, 0.04, 2.0, 0.04, 0.6, -0.7);
 let skew = calibration.implied_vol(o80, bs, a, pricing.price(o80, hn, a).price()) - calibration.implied_vol(o125, bs, a, pricing.price(o125, hn, a).price());
 lmf.check(skew > 0.04, "negative correlation: downside skew");
 end _lmcode_
-savedsl(sim, "data/vol_smile-sim.dslb");
-r = system ${dsl_cli(sim)} --lmcode data/vol_smile-sim.dslb;
-assert(r.code == 0);
+r = run_lmcode(sim);
+assert(r.ok);
 
 draw = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
 plot.png("images/vol_smile.png", 900, 560);
@@ -39,7 +38,6 @@ plot.cmd("set xlabel 'strike'; set ylabel 'Black-Scholes implied volatility [%]'
 plot.cmd("plot 'data/vol_smile.csv' u 1:2 w lp lw 3 pt 7 lc rgb '#d62728' t 'rho = -0.7 (equity skew)', '' u 1:3 w lp lw 3 pt 5 lc rgb '#2ca02c' t 'rho = 0 (symmetric smile)', '' u 1:4 w lp lw 3 pt 9 lc rgb '#1f77b4' t 'rho = +0.7'");
 plot.close();
 end _lmcode_
-savedsl(draw, "data/vol_smile-draw.dslb");
-r = system ${dsl_cli(draw)} --lmcode data/vol_smile-draw.dslb;
-assert(r.code == 0);
+r = run_lmcode(draw);
+assert(r.ok);
 println("wrote images/vol_smile.png");

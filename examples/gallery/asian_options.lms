@@ -41,10 +41,9 @@ for (i in range(0, 21)) {
 }
 lmf.save_text("data/asian_strikes.csv", krows);
 end _lmcode_
-savedsl(sim, "data/asian_options-sim.dslb");
-r = system ${dsl_cli(sim)} --lmcode data/asian_options-sim.dslb;
-if (r.code != 0) { println(r.stdout); }
-assert(r.code == 0);
+r = run_lmcode(sim);
+if (!r.ok) { println(r.message); }
+assert(r.ok);
 
 draw = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
 plot.png("images/asian_options.png", 1000, 480);
@@ -57,8 +56,7 @@ plot.cmd("plot 'data/asian_strikes.csv' u 1:2 w l lw 2 lc rgb '#aaaaaa' t 'vanil
 plot.cmd("unset multiplot");
 plot.close();
 end _lmcode_
-savedsl(draw, "data/asian_options-draw.dslb");
-r = system ${dsl_cli(draw)} --lmcode data/asian_options-draw.dslb;
-if (r.code != 0) { println(r.stderr); }
-assert(r.code == 0);
+r = run_lmcode(draw);
+if (!r.ok) { println(json_stringify(r)); }
+assert(r.ok);
 println("wrote images/asian_options.png");

@@ -37,10 +37,9 @@ let theta_otm = pricing.price(instrument.european_call(100.0, 0.05), model.black
 lmf.check(theta_atm < theta_otm - 10.0, "time decay is fastest at the money near expiry");
 lmf.print("ATM 1-year delta " + str(d) + ", theta near expiry: ATM " + str(theta_atm) + " vs OTM " + str(theta_otm));
 end _lmcode_
-savedsl(sim, "data/greeks_surface-sim.dslb");
-r = system ${dsl_cli(sim)} --lmcode data/greeks_surface-sim.dslb;
-if (r.code != 0) { println(r.stdout); }
-assert(r.code == 0);
+r = run_lmcode(sim);
+if (!r.ok) { println(r.message); }
+assert(r.ok);
 
 draw = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
 plot.png("images/greeks_surface.png", 1000, 760);
@@ -54,8 +53,7 @@ plot.cmd("set palette defined (0 '#67000d', 0.5 '#fb6a4a', 1 '#fff5f0'); set tit
 plot.cmd("unset multiplot");
 plot.close();
 end _lmcode_
-savedsl(draw, "data/greeks_surface-draw.dslb");
-r = system ${dsl_cli(draw)} --lmcode data/greeks_surface-draw.dslb;
-if (r.code != 0) { println(r.stderr); }
-assert(r.code == 0);
+r = run_lmcode(draw);
+if (!r.ok) { println(json_stringify(r)); }
+assert(r.ok);
 println("wrote images/greeks_surface.png");

@@ -9,9 +9,8 @@ let m = model.black_scholes(100.0, 0.05, 0.0, 0.2);
 let call = instrument.european_call(100.0, 1.0);
 risk.save_profile(call, m, pricing.analytic(), 60.0, 140.0, 161, "data/option_greeks.csv");
 end _lmcode_
-savedsl(calc, "data/option_greeks-calc.dslb");
-r = system ${dsl_cli(calc)} --lmcode data/option_greeks-calc.dslb;
-assert(r.code == 0);
+r = run_lmcode(calc);
+assert(r.ok);
 
 draw = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
 plot.png("images/option_greeks.png", 900, 600);
@@ -26,7 +25,6 @@ plot.cmd("set key top left box opaque");
 plot.cmd("plot 'data/option_greeks.csv' using 1:2 with lines lw 3 lc rgb '#d62728' title 'price (left)', '' using 1:3 axes x1y2 with lines lw 3 lc rgb '#1f77b4' title 'delta (right)'");
 plot.close();
 end _lmcode_
-savedsl(draw, "data/option_greeks-draw.dslb");
-r = system ${dsl_cli(draw)} --lmcode data/option_greeks-draw.dslb;
-assert(r.code == 0);
+r = run_lmcode(draw);
+assert(r.ok);
 println("wrote images/option_greeks.png");

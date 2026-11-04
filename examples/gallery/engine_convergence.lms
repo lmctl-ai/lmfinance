@@ -31,9 +31,8 @@ lmf.save_text("data/conv_mc.csv", mc);
 # the tree at 2560 steps is within 1e-3 of the closed form
 lmf.assert_close(pricing.price(call, m, pricing.binomial(2560)).price(), exact, 0.001);
 end _lmcode_
-savedsl(sim, "data/engine_convergence-sim.dslb");
-r = system ${dsl_cli(sim)} --lmcode data/engine_convergence-sim.dslb;
-assert(r.code == 0);
+r = run_lmcode(sim);
+assert(r.ok);
 
 draw = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
 plot.png("images/engine_convergence.png", 900, 600);
@@ -43,7 +42,6 @@ plot.cmd("set xlabel 'tree steps / time steps / Monte Carlo paths'; set ylabel '
 plot.cmd("plot 'data/conv_tree.csv' u 1:2 w lp lw 2 pt 7 lc rgb '#1f77b4' t 'binomial tree (CRR)', 'data/conv_fd.csv' u 1:2 w lp lw 2 pt 5 lc rgb '#2ca02c' t 'finite differences (n x 2n grid)', 'data/conv_mc.csv' u 1:2 w lp lw 2 pt 9 lc rgb '#d62728' t 'Monte Carlo, seed 42', '' u 1:3 w l lw 2 dt 2 lc rgb '#d62728' t 'MC standard error'");
 plot.close();
 end _lmcode_
-savedsl(draw, "data/engine_convergence-draw.dslb");
-r = system ${dsl_cli(draw)} --lmcode data/engine_convergence-draw.dslb;
-assert(r.code == 0);
+r = run_lmcode(draw);
+assert(r.ok);
 println("wrote images/engine_convergence.png");

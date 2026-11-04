@@ -47,10 +47,9 @@ lmf.check(pi > pn, "the inverted curve has the lowest long rates and the highest
 lmf.check(si > sn, "paying 4% fixed against high near-term forwards (inverted curve) is worth more");
 lmf.check(pricing.swap_par_rate(swap, inverted) > pricing.swap_par_rate(swap, normal), "the 5-year par rate follows the first five years of the curve");
 end _lmcode_
-savedsl(sim, "data/curve_shapes-sim.dslb");
-r = system ${dsl_cli(sim)} --lmcode data/curve_shapes-sim.dslb;
-if (r.code != 0) { println(r.stdout); }
-assert(r.code == 0);
+r = run_lmcode(sim);
+if (!r.ok) { println(r.message); }
+assert(r.ok);
 
 draw = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
 plot.png("images/curve_shapes.png", 1000, 500);
@@ -66,8 +65,7 @@ plot.cmd("plot 'data/curve_prices.csv' u 2 lc rgb '#1f77b4' t 'bond price (left)
 plot.cmd("unset multiplot");
 plot.close();
 end _lmcode_
-savedsl(draw, "data/curve_shapes-draw.dslb");
-r = system ${dsl_cli(draw)} --lmcode data/curve_shapes-draw.dslb;
-if (r.code != 0) { println(r.stderr); }
-assert(r.code == 0);
+r = run_lmcode(draw);
+if (!r.ok) { println(json_stringify(r)); }
+assert(r.ok);
 println("wrote images/curve_shapes.png");

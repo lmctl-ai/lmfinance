@@ -22,9 +22,8 @@ lmf.save_text("data/mc_exact.csv", str(exact) + "\n");
 lmf.assert_close(pricing.price(call, m, pricing.monte_carlo(4000, 7)).price(), pricing.price(call, m, pricing.monte_carlo(4000, 7)).price(), 0.0);
 lmf.check(inside >= 7, "seven of eight estimates within 3 standard errors");
 end _lmcode_
-savedsl(sim, "data/mc_convergence-sim.dslb");
-r = system ${dsl_cli(sim)} --lmcode data/mc_convergence-sim.dslb;
-assert(r.code == 0);
+r = run_lmcode(sim);
+assert(r.ok);
 
 draw = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
 plot.png("images/mc_convergence.png", 900, 560);
@@ -36,7 +35,6 @@ plot.cmd("set xlabel 'paths'; set ylabel 'price'; set xrange [300:3e7]; set yran
 plot.cmd("plot exact w l lw 2 dt 2 lc rgb 'black' t 'closed form 10.4506', 'data/mc_estimates.csv' u 1:2:3 w yerrorbars pt 7 ps 1.4 lw 2 lc rgb '#d62728' t 'Monte Carlo'");
 plot.close();
 end _lmcode_
-savedsl(draw, "data/mc_convergence-draw.dslb");
-r = system ${dsl_cli(draw)} --lmcode data/mc_convergence-draw.dslb;
-assert(r.code == 0);
+r = run_lmcode(draw);
+assert(r.ok);
 println("wrote images/mc_convergence.png");

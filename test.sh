@@ -16,23 +16,75 @@ ok(){ pass=$((pass+1)); echo "ok $pass - $1"; }
 fail(){ echo "FAIL: $*" >&2; exit 1; }
 sha(){ if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | cut -c1-64; else shasum -a 256 "$1" | cut -c1-64; fi; }
 
-# lmscript resolves cli="lmfinance" on PATH first, so programs bind to the binary under test.
-export PATH="$(cd "$BUILD_DIR" 2>/dev/null && pwd || echo "$HERE/$BUILD_DIR"):$PATH"
-LMSCRIPT="$(scripts/select-compiler.sh)"
-scripts/sync-sdk.sh --verify >/dev/null || fail "SDK header pin mismatch"
-ok "SDK header matches sdk.lock"
-scripts/sync-deps.sh --verify >/dev/null || fail "third_party pin mismatch"
-ok "third_party matches deps.lock"
-
 GEN=""
 command -v ninja >/dev/null 2>&1 && GEN="-G Ninja"
 # shellcheck disable=SC2086
 cmake -S . -B "$BUILD_DIR" $GEN -DCMAKE_BUILD_TYPE=Release >/dev/null
 cmake --build "$BUILD_DIR" >"$WORK/build.log" 2>&1 || { tail -40 "$WORK/build.log" >&2; fail "build"; }
 ok "build"
+
+# A shim named lmfinance, first on PATH, execs the build under test: cli="lmfinance" blocks and
+# explicit ["lmfinance", "--lmcode", "$DSLFILE"] commands bind to it. For each --lmcode call it
+# records the host's own exit code and keeps a copy of every private program file (the bytecode
+# header checks and the budget/dry checks, whose limits apply to the host alone, use those files).
+SHIM="$(cd "$BUILD_DIR" && pwd)/test-shim"; rm -rf "$SHIM"; mkdir -p "$SHIM/runs"
+HOST_ABS="$(cd "$BUILD_DIR" && pwd)/$(basename "$HOST")"
+case "$UNAME_S" in
+  MINGW*|MSYS*|CYGWIN*)
+    # Windows spawns the host without a shell, so the shim must be a real executable.
+    SHIM_W="$(cd "$SHIM" && pwd -W)"; HOST_W="$(cd "$BUILD_DIR" && pwd -W)/$(basename "$HOST")"
+    "${CXX:-g++}" -std=c++17 -O1 -DHOST_PATH="\"$HOST_W\"" -DSHIM_DIR="\"$SHIM_W\"" -o "$SHIM/lmfinance.exe" tests/shim.cpp || fail "build Windows test shim";;
+  *)
+    cat >"$SHIM/lmfinance" <<EOF2
+#!/bin/sh
+[ "\${1:-}" = --lmcode ] || exec "$HOST_ABS" "\$@"
+tag="\$(mktemp -d "$SHIM/runs/run.XXXXXX")"
+i=0
+for a in "\$@"; do case "\$a" in --*) ;; *) cp "\$a" "\$tag/p\$i"; i=\$((i+1));; esac; done
+"$HOST_ABS" "\$@"; c=\$?
+echo "\$c" > "\$tag/code"; echo "\$tag" > "$SHIM/last"; exit "\$c"
+EOF2
+    chmod +x "$SHIM/lmfinance";;
+esac
+# On Windows the npm lmscript must go through its .cmd shim, never a bare bash invocation.
+PATH="$SHIM:$PATH"
+export PATH
+LMSCRIPT="$(scripts/select-compiler.sh)"
+echo "compiler: $LMSCRIPT"
+# run_lms FILE [lmscript flags]: run a file; its stdout goes to stdout. Returns the host's exit code
+# from its last --lmcode call; 125 when no host ran (the file did not compile).
+run_lms() {
+  local file="$1"; shift
+  rm -f "$SHIM/last"
+  "$LMSCRIPT" "$@" "$file" || true
+  [ -f "$SHIM/last" ] || return 125
+  LAST_RUN="$(cat "$SHIM/last")"
+  return "$(cat "$LAST_RUN/code")"
+}
+# capture NAME: load $WORK/NAME.lms in a dry invocation (nothing runs); $WORK/NAME.prog is its program file.
+capture() {
+  rm -f "$SHIM/last"
+  "$LMSCRIPT" --dry-run "$WORK/$1.lms" >/dev/null 2>"$WORK/$1.cerr" || { cat "$WORK/$1.cerr" >&2; fail "$1 compile"; }
+  [ -f "$SHIM/last" ] || fail "$1 did not reach the host"
+  cp "$(cat "$SHIM/last")/p0" "$WORK/$1.prog"
+}
+check_v6() { # program file: bytecode v6 for the raw host schema bytes
+  python3 - "$1" <<'PYV6'
+from pathlib import Path
+import hashlib,sys
+b=Path(sys.argv[1]).read_bytes()
+assert b[:6] == b'DSLB\x00\x06', 'not bytecode v6'
+assert b[6:38] == hashlib.sha256(Path('schema/lmfinance.dsl.json').read_bytes()).digest(), 'schema hash differs from the raw host schema bytes'
+PYV6
+}
+scripts/sync-sdk.sh --verify >/dev/null || fail "SDK header pin mismatch"
+ok "SDK header matches sdk.lock"
+scripts/sync-deps.sh --verify >/dev/null || fail "third_party pin mismatch"
+ok "third_party matches deps.lock"
 python3 tests/check-host-flags.py schema/lmfinance.dsl.json "$HOST" || fail "hard host flag cutover"
 
 want_version="lmfinance $(sed -n 's/^project(lmfinance VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)"
+[ "$want_version" = "lmfinance 0.1.4" ] || fail "CMakeLists.txt version is not 0.1.4 ($want_version)"
 [ "$("$HOST" --version)" = "$want_version" ] || fail "--version is not exactly '$want_version'"
 ok "--version prints exactly '$want_version'"
 python3 scripts/gen-schema.py >/dev/null && git diff --quiet -- schema/lmfinance.dsl.json 2>/dev/null || [ ! -e .git ] || fail "schema/lmfinance.dsl.json is stale: run scripts/gen-schema.py"
@@ -78,35 +130,35 @@ case "$UNAME_S" in
   *) ok "static-link check skipped on $UNAME_S";;
 esac
 
-# Programs: compile every test and example, run them (they assert their own numbers).
+# Programs: every test and example runs through lmscript (which hands the host a private program
+# file over the invocation envelope); each asserts its own numbers, and the shimmed copy proves the
+# file the host received is bytecode v6 for this schema.
 mkdir -p build/examples
 n=0
 for src in tests/*.lms examples/*.lms; do
   name="$(basename "$src" .lms)"
-  "$LMSCRIPT" "$src" "build/$name.dslb" >"$WORK/$name.log" 2>&1 || { cat "$WORK/$name.log" >&2; fail "$name compile"; }
+  rm -f "$SHIM/last"
+  "$LMSCRIPT" "$src" >"$WORK/$name.log" 2>&1 || { cat "$WORK/$name.log" >&2; fail "$name run"; }
+  [ -f "$SHIM/last" ] || { cat "$WORK/$name.log" >&2; fail "$name did not reach the host"; }
+  run_dir="$(cat "$SHIM/last")"
+  for program in "$run_dir"/p*; do check_v6 "$program" || fail "$name is not bytecode v6 for the host schema"; done
   n=$((n+1))
 done
-ok "$n programs compile as bytecode v6"
-for src in tests/*.lms examples/*.lms; do
-  name="$(basename "$src" .lms)"
-  "$HOST" --lmcode "build/$name.dslb" >"$WORK/$name.out" 2>"$WORK/$name.err" || { cat "$WORK/$name.out" "$WORK/$name.err" >&2; fail "$name run"; }
-  grep -q '"ok": true' "$WORK/$name.out" || { cat "$WORK/$name.out" >&2; fail "$name did not report ok"; }
-done
-ok "$n programs run and pass their own assertions"
+ok "$n programs run under the invocation envelope, pass their own assertions, and are bytecode v6 for the host schema"
 
 # Determinism: the CSV files the examples write are identical on rerun.
 for f in build/examples/*.csv; do echo "$(sha "$f") $f"; done >"$WORK/before.txt"
 for src in examples/*.lms; do
   name="$(basename "$src" .lms)"
-  "$HOST" --lmcode "build/$name.dslb" >/dev/null 2>&1 || fail "$name rerun"
+  "$LMSCRIPT" "$src" >"$WORK/$name.rerun.log" 2>&1 || { cat "$WORK/$name.rerun.log" >&2; fail "$name rerun"; }
 done
 for f in build/examples/*.csv; do echo "$(sha "$f") $f"; done >"$WORK/after.txt"
 cmp -s "$WORK/before.txt" "$WORK/after.txt" || fail "result files differ on rerun"
 ok "all $(wc -l <"$WORK/after.txt" | tr -d ' ') result files are byte-identical on rerun"
 
-# Standard library built into lmscript 0.2.420: one function from each family runs on this host (file I/O in $WORK).
+# Standard library built into lmscript: one function from each family runs on this host (file I/O in $WORK).
 cat >"$WORK/std.lms" <<LMS
-p = _dsl_ cli="lmfinance";
+p = _lmcode_ cli="lmfinance";
 lmf.print("string=" + str_upper("abc") + ":" + str(str_len("hello")));
 lmf.print("math=" + str(math_max(3, 9)));
 let xs = int_list().add(4).add(7);
@@ -116,11 +168,11 @@ let path = "$WORK/std.txt";
 file_write(path, "line one\n");
 file_append(path, "line two\n");
 lmf.print("file=" + str(file_exists(path)) + ":" + str(str_len(file_read(path))));
-end _dsl_
-savedsl(p, "$WORK/std.dslb");
+end _lmcode_
+r = run_lmcode(p);
+println(json_stringify(r));
 LMS
-"$LMSCRIPT" "$WORK/std.lms" >/dev/null 2>"$WORK/std.cerr" || { cat "$WORK/std.cerr" >&2; fail "std program compile"; }
-"$HOST" --lmcode "$WORK/std.dslb" >"$WORK/std.raw" 2>"$WORK/std.err" || fail "std program run: $(cat "$WORK/std.err")"
+run_lms "$WORK/std.lms" >"$WORK/std.raw" 2>"$WORK/std.err" || { code=$?; cat "$WORK/std.err"; [ "$code" = 125 ] && fail "std program compile"; fail "std program run"; }
 python3 - "$WORK/std.raw" <<'PYRUN' || fail "std program emitted unexpected output"
 from pathlib import Path
 import sys
@@ -131,7 +183,7 @@ expected = [
     "collections=2:7",
     "split=a-b-c",
     "file=true:18",
-    '{"ok": true, "result": null}',
+    '{"ok":true,"result":null}',
 ]
 assert lines == expected, lines
 PYRUN
@@ -141,13 +193,14 @@ ok "standard library runs end to end on the host: string, math, collections, fil
 printf '1 2 3\n' >"$WORK/pnl.csv"
 expect_error() { # name, snippet, expected message fragment
   cat >"$WORK/$1.lms" <<LMS
-p = _dsl_ cli="lmfinance";
+p = _lmcode_ cli="lmfinance";
 $2
-end _dsl_
-savedsl(p, "$WORK/$1.dslb");
+end _lmcode_
+r = run_lmcode(p);
+println(json_stringify(r));
 LMS
-  "$LMSCRIPT" "$WORK/$1.lms" >/dev/null 2>"$WORK/$1.cerr" || { cat "$WORK/$1.cerr" >&2; fail "$1 compile"; }
-  set +e; out="$("$HOST" --lmcode "$WORK/$1.dslb" 2>/dev/null)"; code=$?; set -e
+  set +e; out="$(run_lms "$WORK/$1.lms" 2>"$WORK/$1.cerr")"; code=$?; set -e
+  [ "$code" != 125 ] || { cat "$WORK/$1.cerr" >&2; fail "$1 compile"; }
   [ "$code" = 3 ] || fail "$1: exit code $code, expected 3 ($out)"
   echo "$out" | grep -q "$3" || fail "$1: message lacks '$3': $out"
 }
@@ -182,18 +235,22 @@ expect_error noseries 'let s = risk.series("does-not-exist.csv");' "cannot open"
 expect_error seriesidx 'let s = risk.series("'"$WORK"'/pnl.csv"); let x = s.get(5);' "outside"
 ok "errors stop the program with exit 3 and a clear message (28 cases)"
 
-# --dry-run loads and verifies bytecode but runs nothing (no output files).
+# --dry-run loads and verifies the program but runs nothing (no output files), both through
+# lmscript's dry invocation metadata and through the standalone host flag.
 cat >"$WORK/dry.lms" <<LMS
-p = _dsl_ cli="lmfinance";
+p = _lmcode_ cli="lmfinance";
 lmf.save_text("$WORK/dry.txt", "ran");
-end _dsl_
-savedsl(p, "$WORK/dry.dslb");
+end _lmcode_
+r = run_lmcode(p);
+println(json_stringify(r));
 LMS
-"$LMSCRIPT" "$WORK/dry.lms" >/dev/null 2>&1 || fail "dry-run program compile"
-"$HOST" --dry-run --lmcode "$WORK/dry.dslb" | grep -q '"ok": true' || fail "dry run did not report ok"
+"$LMSCRIPT" --dry-run "$WORK/dry.lms" >/dev/null 2>&1 || { cat "$WORK/dry.lms" >&2; fail "dry-run invocation"; }
 [ ! -e "$WORK/dry.txt" ] || fail "--dry-run executed the program"
-"$HOST" --lmcode "$WORK/dry.dslb" >/dev/null && [ -e "$WORK/dry.txt" ] || fail "program did not run without --dry-run"
-ok "--dry-run verifies without running"
+capture dry
+"$HOST" --dry-run --lmcode "$WORK/dry.prog" >"$WORK/dry-host.out" || fail "host dry run"
+[ ! -e "$WORK/dry.txt" ] || fail "standalone --dry-run executed the program"
+run_lms "$WORK/dry.lms" >/dev/null && [ -e "$WORK/dry.txt" ] || fail "program did not run without --dry-run"
+ok "--dry-run verifies without running (invocation metadata and standalone flag)"
 
 # README gallery: every linked example and image exists, images are valid PNG/GIF within the size limits.
 magic_ok() { # file
@@ -219,11 +276,19 @@ done
 grep -qE 'lmctl( autorun)? https://raw.githubusercontent.com/lmctl-ai/lmfinance/main/examples/' README.md || fail "README captions lack lmctl run commands"
 ok "README gallery: $nimg images valid and within size limits, every linked example exists, captions use lmctl autorun"
 
-# Gallery examples: lmfinance computes, lmplot draws (needs lmplot on PATH, or network for install=; the GIF needs ffmpeg).
-if command -v lmplot >/dev/null 2>&1 || [ "${LMFINANCE_TEST_NETWORK:-}" = 1 ]; then
+# Gallery examples: lmfinance computes, lmplot or lmdraw draws. They run only when a COMPATIBLE
+# renderer is already on PATH (one that answers --lmcode-schema): a release that still speaks the
+# retired protocol is not a usable renderer, and an auto-install would fetch exactly that. Any
+# example whose renderer is not on PATH is skipped loudly; CI never fetches another host at @latest.
+have_lmplot=false; have_lmdraw=false
+command -v lmplot >/dev/null 2>&1 && lmplot --lmcode-schema --json >/dev/null 2>&1 && have_lmplot=true || true
+command -v lmdraw >/dev/null 2>&1 && lmdraw --lmcode-schema --json >/dev/null 2>&1 && have_lmdraw=true || true
+if $have_lmplot || $have_lmdraw; then
   ng=0
   for src in examples/gallery/*.lms; do
     name="$(basename "$src" .lms)"
+    if grep -q 'cli="lmplot"' "$src" && ! $have_lmplot; then echo "note: $name skipped (no compatible lmplot on PATH)"; continue; fi
+    if grep -q 'cli="lmdraw"' "$src" && ! $have_lmdraw; then echo "note: $name skipped (no compatible lmdraw on PATH)"; continue; fi
     if [ "$name" = option_decay ] && ! command -v ffmpeg >/dev/null 2>&1; then echo "note: $name skipped (no ffmpeg on PATH)"; continue; fi
     timeout 300 "$LMSCRIPT" "$src" >"$WORK/gallery-$name.log" 2>&1 || { cat "$WORK/gallery-$name.log" >&2; fail "gallery example $name"; }
     ng=$((ng+1))
@@ -234,47 +299,48 @@ if command -v lmplot >/dev/null 2>&1 || [ "${LMFINANCE_TEST_NETWORK:-}" = 1 ]; t
   done
   ok "$ng gallery examples run and wrote valid images (docs/images are refreshed by examples/render-all.sh)"
 else
-  ok "gallery examples skipped (no lmplot on PATH, LMFINANCE_TEST_NETWORK unset): docs/images not regenerated"
+  echo "SKIPPED: gallery examples (no compatible lmplot/lmdraw on PATH): docs/images were not regenerated"
+  ok "gallery examples skipped loudly (no compatible lmplot/lmdraw on PATH)"
 fi
 
 # Memory budget: a runaway loop stops with a run error (exit 3, message on stderr and in the JSON
-# line) instead of exhausting the machine. Bumped curves are the biggest host objects a loop can
+# frame) instead of exhausting the machine. Bumped curves are the biggest host objects a loop can
 # make quickly (~1.3 KB each, kept in the arena). A small budget everywhere, the Monte Carlo
 # sample pre-check, and on Linux the default 4096 MiB under a 6 GiB address-space limit (ulimit
 # only here, never in the host).
 cat >"$WORK/runaway.lms" <<LMS
-p = _dsl_ cli="lmfinance";
+p = _lmcode_ cli="lmfinance";
 let c = market.flat_curve(0.03);
 let i = 0;
 while (i < 100000000) {
   let d = c.bumped(0.0001);
   i = i + 1;
 }
-end _dsl_
-savedsl(p, "$WORK/runaway.dslb");
+end _lmcode_
+r = run_lmcode(p);
+println(json_stringify(r));
 LMS
-"$LMSCRIPT" "$WORK/runaway.lms" >/dev/null || fail "runaway.lms compile"
-set +e; out="$(LMFINANCE_MAX_MEMORY_MB=64 "$HOST" --lmcode "$WORK/runaway.dslb" 2>"$WORK/runaway.err")"; code=$?; set -e
+capture runaway
+set +e; out="$(LMFINANCE_MAX_MEMORY_MB=64 "$HOST" --lmcode "$WORK/runaway.prog" 2>"$WORK/runaway.err")"; code=$?; set -e
 [ "$code" = 3 ] || fail "runaway loop under LMFINANCE_MAX_MEMORY_MB=64: exit $code, expected 3 ($out)"
 echo "$out" | grep -q "memory budget exceeded" || fail "runaway loop: JSON lacks the budget message: $out"
 grep -q "LMFINANCE_MAX_MEMORY_MB" "$WORK/runaway.err" || fail "runaway loop: no budget message on stderr"
-printf 'p = _dsl_ cli="lmfinance";\nlet r = pricing.price(instrument.european_call(100.0, 1.0), model.black_scholes(100.0, 0.05, 0.0, 0.2), pricing.monte_carlo(100000000, 7));\nend _dsl_\nsavedsl(p, "%s");\n' \
-  "$WORK/bigmc.dslb" >"$WORK/bigmc.lms"
-"$LMSCRIPT" "$WORK/bigmc.lms" >/dev/null || fail "bigmc.lms compile"
-set +e; out="$(LMFINANCE_MAX_MEMORY_MB=64 "$HOST" --lmcode "$WORK/bigmc.dslb" 2>/dev/null)"; code=$?; set -e
+printf 'p = _lmcode_ cli="lmfinance";\nlet r = pricing.price(instrument.european_call(100.0, 1.0), model.black_scholes(100.0, 0.05, 0.0, 0.2), pricing.monte_carlo(100000000, 7));\nend _lmcode_\nr = run_lmcode(p);\nprintln(json_stringify(r));\n' >"$WORK/bigmc.lms"
+capture bigmc
+set +e; out="$(LMFINANCE_MAX_MEMORY_MB=64 "$HOST" --lmcode "$WORK/bigmc.prog" 2>/dev/null)"; code=$?; set -e
 [ "$code" = 3 ] && echo "$out" | grep -q "2289 MiB more requested" || fail "1e8 Monte Carlo paths under LMFINANCE_MAX_MEMORY_MB=64: exit $code ($out)"
-set +e; LMFINANCE_MAX_MEMORY_MB=-5 "$HOST" --lmcode "$WORK/runaway.dslb" >/dev/null 2>"$WORK/badenv.err"; code=$?; set -e
+set +e; LMFINANCE_MAX_MEMORY_MB=-5 "$HOST" --lmcode "$WORK/runaway.prog" >/dev/null 2>"$WORK/badenv.err"; code=$?; set -e
 [ "$code" = 2 ] && grep -q "positive whole number" "$WORK/badenv.err" || fail "bad LMFINANCE_MAX_MEMORY_MB: exit $code"
 if [ "$UNAME_S" = Linux ]; then
-  set +e; out="$(ulimit -v 6291456; "$HOST" --lmcode "$WORK/runaway.dslb" 2>/dev/null)"; code=$?; set -e
+  set +e; out="$(ulimit -v 6291456; "$HOST" --lmcode "$WORK/runaway.prog" 2>/dev/null)"; code=$?; set -e
   [ "$code" = 3 ] && echo "$out" | grep -q "limit 4096 MiB" || fail "runaway loop with the default budget under ulimit -v 6 GiB: exit $code ($out)"
   ok "memory budget: runaway loop stops at 64 MiB and at the default 4096 MiB (under ulimit -v 6 GiB), Monte Carlo pre-check"
 else
   ok "memory budget: runaway loop and Monte Carlo pre-check stop at LMFINANCE_MAX_MEMORY_MB=64 (default-budget run is Linux-only)"
 fi
 
-set +e; "$HOST" --lmcode "$WORK/does-not-exist.dslb" >/dev/null 2>&1; code=$?; set -e
-[ "$code" = 3 ] || fail "missing bytecode exit code $code, expected 3"
+set +e; "$HOST" --lmcode "$WORK/does-not-exist.prog" >/dev/null 2>&1; code=$?; set -e
+[ "$code" = 3 ] || fail "missing program exit code $code, expected 3"
 set +e; "$HOST" >/dev/null 2>&1; code=$?; set -e
 [ "$code" = 2 ] || fail "usage exit code $code, expected 2"
 ok "usage and load errors use exit codes 2 and 3"

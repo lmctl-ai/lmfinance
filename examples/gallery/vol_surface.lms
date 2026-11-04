@@ -33,10 +33,9 @@ lmf.check(vol_long > vol_short + 0.03, "term structure rises toward the long-run
 lmf.check(skew > 0.05, "downside skew at 0.66 years");
 lmf.print("ATM vol " + str(vol_short) + " -> " + str(vol_long) + ", skew " + str(skew));
 end _lmcode_
-savedsl(sim, "data/vol_surface-sim.dslb");
-r = system ${dsl_cli(sim)} --lmcode data/vol_surface-sim.dslb;
-if (r.code != 0) { println(r.stdout); }
-assert(r.code == 0);
+r = run_lmcode(sim);
+if (!r.ok) { println(r.message); }
+assert(r.ok);
 
 draw = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
 plot.png("images/vol_surface.png", 950, 600);
@@ -48,7 +47,6 @@ plot.cmd("set xrange [80:120]; set yrange [0.15:2.02]");
 plot.cmd("splot 'data/vol_surface.txt' u 1:2:3 w pm3d notitle");
 plot.close();
 end _lmcode_
-savedsl(draw, "data/vol_surface-draw.dslb");
-r = system ${dsl_cli(draw)} --lmcode data/vol_surface-draw.dslb;
-assert(r.code == 0);
+r = run_lmcode(draw);
+assert(r.ok);
 println("wrote images/vol_surface.png");
