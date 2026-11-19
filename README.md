@@ -6,6 +6,8 @@
 [![Latest release](https://img.shields.io/github/v/release/lmctl-ai/lmfinance?label=release)](https://github.com/lmctl-ai/lmfinance/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
+**Documentation:** [lmctl.com/tools/lmfinance](https://www.lmctl.com/tools/lmfinance/) · [skill](https://www.lmctl.com/tools/lmfinance/skill.html) · [guide](https://www.lmctl.com/tools/lmfinance/guide.html) · [reference](https://www.lmctl.com/tools/lmfinance/reference.html)
+
 ### Options
 
 | ![option_decay](docs/images/option_decay.gif) | ![option_greeks](docs/images/option_greeks.png) |
