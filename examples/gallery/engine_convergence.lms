@@ -20,8 +20,7 @@ for (k in range(0, 9)) {
   n = n * 2;
 }
 let paths = 1000;
-# 1000 to 1 024 000 paths: one pricing takes at most 4 000 000 paths
-for (k in range(0, 6)) {
+for (k in range(0, 8)) {
   let r = pricing.price(call, m, pricing.monte_carlo(paths, 42));
   mc = mc + str(paths) + " " + str(abs(r.price() - exact)) + " " + str(r.stderr()) + "\n";
   paths = paths * 4;

@@ -40,7 +40,7 @@ message) so `lmctl autorun <raw github url>` produces output; README captions ar
   above the perpetual limit K g/(1+g), g = 2r/vol^2), `heston_calibration` (36 quotes, wrong guess, rms < 1e-4), `portfolio_waterfall`
   (candlesticks as waterfall boxes), `swap_cashflows` (lmdraw; the legs rebuilt from forwards agree with `swap_npv` to 0.1% of notional).
 - New API (0.1.2): `barrier_options` (in-out parity; the up-and-out call's vega turns negative), `asian_options` (arithmetic MC with
-  the geometric control variate: 30 000 paths x 8 fixing counts x 21 strikes, about 10 s natively; 40 000 before the 4 000 000 paths-times-fixings ceiling of wave 5), `caps_floors` (cap = floor at the ATM rate,
+  the geometric control variate: 40 000 paths x 8 fixing counts x 21 strikes is 17 s), `caps_floors` (cap = floor at the ATM rate,
   cap - floor linear in K), `swaption_grid` (ATM payer = receiver; annuity from two strikes), `mc_var` (three hosts: lmnum normals with a hand-written 2 x 2 Cholesky factor so the released lmnum 0.1.1 suffices in CI,
   lmfinance repricing, `risk.series` VaR/ES; the book is net long gamma so full-revaluation VaR < delta-normal).
 - gnuplot lessons: `index` blocks need TWO blank lines (one blank line only separates `every` blocks); `set key below` plus a
