@@ -64,3 +64,5 @@ string `+`, but no `exp`/`log` (use `pow(2.718281828459045, x)`), no ternary and
 ## Added for the finance track
 
 Twenty further functions and the types `Tree`, `TreeResult`, `Strategy`, `LossDist` (number helpers, compounded and discount-factor curves, explicit binomial trees, portfolios, loan schedules, swap legs, bond cash flows): see [12-finance-track-additions.md](12-finance-track-additions.md).
+
+Wave 5 (normal distribution, d1/d2, plain and stepped Monte Carlo with path ceilings, samples, path payoffs, Black 76, caplets, smile, calibration report, yield DV01): see [13-finance-wave5-additions.md](13-finance-wave5-additions.md).
