@@ -90,6 +90,11 @@ double provided(double v, const char *name) {
   if (std::isnan(v)) throw dslvm::Error(std::string("Result.") + name + ": this engine does not provide it; use the risk functions (bumped Greeks)");
   return v;
 }
+// An int argument that must fit a C++ int: a wrapped 64-bit value would otherwise pass a range check by accident.
+int as_int(const Value &v) {
+  if (v.i < -2147483647LL || v.i > 2147483647LL) throw dslvm::Error("integer argument " + std::to_string(v.i) + " is out of range");
+  return static_cast<int>(v.i);
+}
 using FloatList = dslvm::stdlib::FloatList;
 const std::vector<double> &flist(Value &v) { return static_cast<FloatList *>(v.obj)->items; }
 Value make_flist(dslvm::Registry &r, std::vector<double> v) { return Value::object("FloatList", r.std_collections().make_float_list(std::move(v))); }
@@ -160,7 +165,7 @@ void register_host(dslvm::Registry &r, Host &h) {
   method(r, "Curve", "forward_rate", {"float", "float", "string"}, "float", [](void *p, Args &a) { return Value::real(curve_forward_rate(self<Curve>(p), a[0].f, a[1].f, a[2].s)); });
   method(r, "Curve", "bumped", {"float"}, "Curve", [&h](void *p, Args &a) { return h.hold(h.curves, "Curve", bump_curve(self<Curve>(p), a[0].f)); });
   method(r, "Curve", "save_csv", {"string", "float", "int"}, "void", [](void *p, Args &a) {
-    curve_save_csv(self<Curve>(p), a[0].s, a[1].f, (int)a[2].i); return Value::none();
+    curve_save_csv(self<Curve>(p), a[0].s, a[1].f, as_int(a[2])); return Value::none();
   });
 
   // ---------------------------------------------------------------- instrument
@@ -192,7 +197,7 @@ void register_host(dslvm::Registry &r, Host &h) {
     need(a[1].f > 0, "option maturity must be positive");
     need(a[2].s == "geometric" || a[2].s == "arithmetic", "averaging must be geometric or arithmetic");
     need(a[3].i >= 1 && a[3].i <= 10000, "fixings must be 1..10000");
-    Option o; o.call = call; o.strike = a[0].f; o.years = a[1].f; o.exotic = Exotic::Asian; o.averaging = a[2].s; o.fixings = (int)a[3].i;
+    Option o; o.call = call; o.strike = a[0].f; o.years = a[1].f; o.exotic = Exotic::Asian; o.averaging = a[2].s; o.fixings = as_int(a[3]);
     return h.hold(h.options, "Option", o);
   };
   method(r, "InstrumentApi", "asian_call", {"float", "float", "string", "int"}, "Option", [asian](void *, Args &a) { return asian(true, a); });
@@ -215,7 +220,7 @@ void register_host(dslvm::Registry &r, Host &h) {
   method(r, "CapFloor", "years", {}, "float", [](void *p, Args &) { return Value::real(self<CapFloor>(p).years); });
   method(r, "Swaption", "expiry", {}, "float", [](void *p, Args &) { return Value::real(self<Swaption>(p).expiry); });
   method(r, "InstrumentApi", "bond", {"float", "float", "float", "int"}, "Bond", [&h](void *, Args &a) {
-    Bond b; b.face = a[0].f; b.coupon = a[1].f; b.years = a[2].f; b.freq = (int)a[3].i;
+    Bond b; b.face = a[0].f; b.coupon = a[1].f; b.years = a[2].f; b.freq = as_int(a[3]);
     return h.hold(h.bonds, "Bond", b);
   });
   method(r, "InstrumentApi", "zero_bond", {"float", "float"}, "Bond", [&h](void *, Args &a) {
@@ -239,7 +244,7 @@ void register_host(dslvm::Registry &r, Host &h) {
   });
   method(r, "Strategy", "payoff", {"float"}, "float", [](void *p, Args &a) { return Value::real(strategy_payoff(self<Strategy>(p), a[0].f)); });
   method(r, "Strategy", "profit", {"float", "float"}, "float", [](void *p, Args &a) { return Value::real(strategy_payoff(self<Strategy>(p), a[0].f) - a[1].f); });
-  method(r, "Strategy", "payoffs", {"float", "float", "int"}, "FloatList", [&r](void *p, Args &a) { return make_flist(r, strategy_payoffs(self<Strategy>(p), a[0].f, a[1].f, (int)a[2].i)); });
+  method(r, "Strategy", "payoffs", {"float", "float", "int"}, "FloatList", [&r](void *p, Args &a) { return make_flist(r, strategy_payoffs(self<Strategy>(p), a[0].f, a[1].f, as_int(a[2]))); });
   method(r, "Option", "payoff", {"float"}, "float", [](void *p, Args &a) { return Value::real(option_payoff(self<Option>(p), a[0].f)); });
   method(r, "Option", "strike", {}, "float", [](void *p, Args &) { return Value::real(self<Option>(p).strike); });
   method(r, "Option", "years", {}, "float", [](void *p, Args &) { return Value::real(self<Option>(p).years); });
@@ -247,7 +252,7 @@ void register_host(dslvm::Registry &r, Host &h) {
   // Textbook swap (item 12): starts today, no fixing or settlement lag, `freq` payments a year, accrual exactly 1/freq,
   // floating rate the curve's simple forward. Valued from discount factors at exact times (see durable-memory/12).
   method(r, "InstrumentApi", "swap_simple", {"float", "float", "float", "int"}, "Swap", [&h](void *, Args &a) {
-    Swap s; s.notional = a[0].f; s.rate = a[1].f; s.years = a[2].f; s.freq = (int)a[3].i; s.simple = true;
+    Swap s; s.notional = a[0].f; s.rate = a[1].f; s.years = a[2].f; s.freq = as_int(a[3]); s.simple = true;
     need(s.notional > 0, "instrument.swap_simple: notional must be positive");
     need(s.freq == 1 || s.freq == 2 || s.freq == 4 || s.freq == 12, "instrument.swap_simple: payments per year must be 1, 2, 4 or 12");
     const double n = s.years * s.freq;
@@ -255,7 +260,7 @@ void register_host(dslvm::Registry &r, Host &h) {
     return h.hold(h.swaps, "Swap", s);
   });
   method(r, "InstrumentApi", "bond_dated", {"float", "float", "string", "string", "int"}, "Bond", [&h](void *, Args &a) {
-    Bond b; b.dated = true; b.face = a[0].f; b.coupon = a[1].f; b.issue = a[2].s; b.maturity = a[3].s; b.freq = (int)a[4].i;
+    Bond b; b.dated = true; b.face = a[0].f; b.coupon = a[1].f; b.issue = a[2].s; b.maturity = a[3].s; b.freq = as_int(a[4]);
     parse_date(b.issue); parse_date(b.maturity);
     need(b.freq == 1 || b.freq == 2 || b.freq == 4 || b.freq == 12, "instrument.bond_dated: coupon frequency must be 1, 2, 4 or 12 per year");
     return h.hold(h.bonds, "Bond", b);
@@ -284,27 +289,27 @@ void register_host(dslvm::Registry &r, Host &h) {
     need(a[0].f > 0 && a[1].f > 0 && a[2].f > 0, "model.binomial_tree: spot, up and down must be positive");
     need(a[3].f > -1.0, "model.binomial_tree: the rate per step must be above -100%");
     need(a[4].i >= 1 && a[4].i <= 1000, "model.binomial_tree: steps must be 1..1000");
-    Tree t; t.spot = a[0].f; t.up = a[1].f; t.down = a[2].f; t.rate = a[3].f; t.steps = (int)a[4].i;
+    Tree t; t.spot = a[0].f; t.up = a[1].f; t.down = a[2].f; t.rate = a[3].f; t.steps = as_int(a[4]);
     return h.hold(h.trees, "Tree", t);
   });
   method(r, "Tree", "q", {}, "float", [](void *p, Args &) { return Value::real(tree_q(self<Tree>(p))); });
   method(r, "Tree", "steps", {}, "int", [](void *p, Args &) { return Value::integer(self<Tree>(p).steps); });
   method(r, "Tree", "discount", {}, "float", [](void *p, Args &) { return Value::real(1.0 / (1.0 + self<Tree>(p).rate)); });
-  method(r, "Tree", "stock", {"int", "int"}, "float", [](void *p, Args &a) { return Value::real(tree_stock(self<Tree>(p), (int)a[0].i, (int)a[1].i)); });
-  method(r, "Tree", "prob", {"int", "int"}, "float", [](void *p, Args &a) { return Value::real(tree_prob(self<Tree>(p), (int)a[0].i, (int)a[1].i)); });
-  method(r, "Tree", "state_price", {"int", "int"}, "float", [](void *p, Args &a) { return Value::real(tree_state_price(self<Tree>(p), (int)a[0].i, (int)a[1].i)); });
+  method(r, "Tree", "stock", {"int", "int"}, "float", [](void *p, Args &a) { return Value::real(tree_stock(self<Tree>(p), as_int(a[0]), as_int(a[1]))); });
+  method(r, "Tree", "prob", {"int", "int"}, "float", [](void *p, Args &a) { return Value::real(tree_prob(self<Tree>(p), as_int(a[0]), as_int(a[1]))); });
+  method(r, "Tree", "state_price", {"int", "int"}, "float", [](void *p, Args &a) { return Value::real(tree_state_price(self<Tree>(p), as_int(a[0]), as_int(a[1]))); });
   method(r, "Tree", "is_arbitrage_free", {}, "bool", [](void *p, Args &) { return Value::boolean(tree_arbitrage_free(self<Tree>(p))); });
   method(r, "PricingApi", "tree_price", {"Option", "Tree"}, "TreeResult", [&h](void *, Args &a) {
     return h.hold(h.tree_results, "TreeResult", tree_price(obj<Option>(a[0]), obj<Tree>(a[1])));
   });
   method(r, "TreeResult", "price", {}, "float", [](void *p, Args &) { return Value::real(self<TreeResult>(p).value[0][0]); });
-  method(r, "TreeResult", "value", {"int", "int"}, "float", [](void *p, Args &a) { return Value::real(tree_result_value(self<TreeResult>(p), "value", (int)a[0].i, (int)a[1].i)); });
-  method(r, "TreeResult", "intrinsic", {"int", "int"}, "float", [](void *p, Args &a) { return Value::real(tree_result_value(self<TreeResult>(p), "intrinsic", (int)a[0].i, (int)a[1].i)); });
-  method(r, "TreeResult", "continuation", {"int", "int"}, "float", [](void *p, Args &a) { return Value::real(tree_result_value(self<TreeResult>(p), "continuation", (int)a[0].i, (int)a[1].i)); });
-  method(r, "TreeResult", "exercised", {"int", "int"}, "bool", [](void *p, Args &a) { return Value::boolean(tree_result_value(self<TreeResult>(p), "exercised", (int)a[0].i, (int)a[1].i) != 0.0); });
-  method(r, "TreeResult", "delta", {"int", "int"}, "float", [](void *p, Args &a) { return Value::real(tree_result_delta(self<TreeResult>(p), (int)a[0].i, (int)a[1].i)); });
-  method(r, "TreeResult", "gamma", {"int", "int"}, "float", [](void *p, Args &a) { return Value::real(tree_result_gamma(self<TreeResult>(p), (int)a[0].i, (int)a[1].i)); });
-  method(r, "TreeResult", "bond", {"int", "int"}, "float", [](void *p, Args &a) { return Value::real(tree_result_bond(self<TreeResult>(p), (int)a[0].i, (int)a[1].i)); });
+  method(r, "TreeResult", "value", {"int", "int"}, "float", [](void *p, Args &a) { return Value::real(tree_result_value(self<TreeResult>(p), "value", as_int(a[0]), as_int(a[1]))); });
+  method(r, "TreeResult", "intrinsic", {"int", "int"}, "float", [](void *p, Args &a) { return Value::real(tree_result_value(self<TreeResult>(p), "intrinsic", as_int(a[0]), as_int(a[1]))); });
+  method(r, "TreeResult", "continuation", {"int", "int"}, "float", [](void *p, Args &a) { return Value::real(tree_result_value(self<TreeResult>(p), "continuation", as_int(a[0]), as_int(a[1]))); });
+  method(r, "TreeResult", "exercised", {"int", "int"}, "bool", [](void *p, Args &a) { return Value::boolean(tree_result_value(self<TreeResult>(p), "exercised", as_int(a[0]), as_int(a[1])) != 0.0); });
+  method(r, "TreeResult", "delta", {"int", "int"}, "float", [](void *p, Args &a) { return Value::real(tree_result_delta(self<TreeResult>(p), as_int(a[0]), as_int(a[1]))); });
+  method(r, "TreeResult", "gamma", {"int", "int"}, "float", [](void *p, Args &a) { return Value::real(tree_result_gamma(self<TreeResult>(p), as_int(a[0]), as_int(a[1]))); });
+  method(r, "TreeResult", "bond", {"int", "int"}, "float", [](void *p, Args &a) { return Value::real(tree_result_bond(self<TreeResult>(p), as_int(a[0]), as_int(a[1]))); });
   method(r, "Model", "spot", {}, "float", [](void *p, Args &) { return Value::real(self<Model>(p).spot); });
   method(r, "Model", "param", {"string"}, "float", [](void *p, Args &a) {
     const Model &m = self<Model>(p); const std::string &n = a[0].s;
@@ -331,16 +336,16 @@ void register_host(dslvm::Registry &r, Host &h) {
   method(r, "PricingApi", "baw", {}, "Engine", [&h](void *, Args &) { return h.hold(h.engines, "Engine", make_engine(EngineKind::BaroneAdesiWhaley)); });
   method(r, "PricingApi", "binomial", {"int"}, "Engine", [&h](void *, Args &a) {
     need(a[0].i >= 2 && a[0].i <= 20000, "pricing.binomial: steps must be 2..20000");
-    Engine e = make_engine(EngineKind::Binomial); e.steps = (int)a[0].i; return h.hold(h.engines, "Engine", e);
+    Engine e = make_engine(EngineKind::Binomial); e.steps = as_int(a[0]); return h.hold(h.engines, "Engine", e);
   });
   method(r, "PricingApi", "binomial_tree", {"string", "int"}, "Engine", [&h](void *, Args &a) {
     need(a[1].i >= 2 && a[1].i <= 20000, "pricing.binomial_tree: steps must be 2..20000");
     need(a[0].s == "crr" || a[0].s == "jr" || a[0].s == "tian" || a[0].s == "lr", "pricing.binomial_tree: tree must be crr, jr, tian or lr");
-    Engine e = make_engine(EngineKind::Binomial); e.tree = a[0].s; e.steps = (int)a[1].i; return h.hold(h.engines, "Engine", e);
+    Engine e = make_engine(EngineKind::Binomial); e.tree = a[0].s; e.steps = as_int(a[1]); return h.hold(h.engines, "Engine", e);
   });
   method(r, "PricingApi", "finite_diff", {"int", "int"}, "Engine", [&h](void *, Args &a) {
     need(a[0].i >= 2 && a[0].i <= 100000 && a[1].i >= 10 && a[1].i <= 100000, "pricing.finite_diff: need 2..100000 time steps and 10..100000 grid points");
-    Engine e = make_engine(EngineKind::FiniteDifference); e.steps = (int)a[0].i; e.grid = (int)a[1].i; return h.hold(h.engines, "Engine", e);
+    Engine e = make_engine(EngineKind::FiniteDifference); e.steps = as_int(a[0]); e.grid = as_int(a[1]); return h.hold(h.engines, "Engine", e);
   });
   method(r, "PricingApi", "monte_carlo", {"int", "int"}, "Engine", [&h](void *, Args &a) {
     need(a[0].i >= 16 && a[0].i <= 100000000, "pricing.monte_carlo: paths must be 16..100000000");
@@ -387,7 +392,7 @@ void register_host(dslvm::Registry &r, Host &h) {
   });
   method(r, "PricingApi", "bond_cashflow_times", {"Bond"}, "FloatList", [&h, &r](void *, Args &a) { return make_flist(r, bond_cashflow_times(h.clock, obj<Bond>(a[0]))); });
   method(r, "PricingApi", "bond_cashflow_amounts", {"Bond"}, "FloatList", [&h, &r](void *, Args &a) { return make_flist(r, bond_cashflow_amounts(h.clock, obj<Bond>(a[0]))); });
-  method(r, "PricingApi", "par_yield", {"Curve", "float", "int"}, "float", [](void *, Args &a) { return Value::real(par_yield(obj<Curve>(a[0]), a[1].f, (int)a[2].i)); });
+  method(r, "PricingApi", "par_yield", {"Curve", "float", "int"}, "float", [](void *, Args &a) { return Value::real(par_yield(obj<Curve>(a[0]), a[1].f, as_int(a[2]))); });
   method(r, "PricingApi", "capfloor_npv", {"CapFloor", "Curve", "float"}, "float", [&h](void *, Args &a) { return Value::real(capfloor_npv(h.clock, obj<CapFloor>(a[0]), obj<Curve>(a[1]), a[2].f)); });
   method(r, "PricingApi", "capfloor_implied_vol", {"CapFloor", "Curve", "float"}, "float", [&h](void *, Args &a) { return Value::real(capfloor_implied_vol(h.clock, obj<CapFloor>(a[0]), obj<Curve>(a[1]), a[2].f)); });
   method(r, "PricingApi", "capfloor_atm_rate", {"CapFloor", "Curve"}, "float", [&h](void *, Args &a) { return Value::real(capfloor_atm_rate(h.clock, obj<CapFloor>(a[0]), obj<Curve>(a[1]))); });
@@ -414,7 +419,7 @@ void register_host(dslvm::Registry &r, Host &h) {
   method(r, "RiskApi", "rho", {"Option", "Model", "Engine"}, "float", [&h](void *, Args &a) { return Value::real(bumped_rho(h.clock, obj<Option>(a[0]), obj<Model>(a[1]), obj<Engine>(a[2]))); });
   method(r, "RiskApi", "theta", {"Option", "Model", "Engine"}, "float", [&h](void *, Args &a) { return Value::real(bumped_theta(h.clock, obj<Option>(a[0]), obj<Model>(a[1]), obj<Engine>(a[2]))); });
   method(r, "RiskApi", "save_profile", {"Option", "Model", "Engine", "float", "float", "int", "string"}, "void", [&h](void *, Args &a) {
-    save_profile(h.clock, obj<Option>(a[0]), obj<Model>(a[1]), obj<Engine>(a[2]), a[3].f, a[4].f, (int)a[5].i, a[6].s); return Value::none();
+    save_profile(h.clock, obj<Option>(a[0]), obj<Model>(a[1]), obj<Engine>(a[2]), a[3].f, a[4].f, as_int(a[5]), a[6].s); return Value::none();
   });
   method(r, "RiskApi", "bond_dv01", {"Bond", "Curve"}, "float", [&h](void *, Args &a) {
     Curve up = bump_curve(obj<Curve>(a[1]), 1e-4), dn = bump_curve(obj<Curve>(a[1]), -1e-4);
@@ -534,7 +539,7 @@ void register_host(dslvm::Registry &r, Host &h) {
     if (!f) throw dslvm::Error("lmf.save_text: write failed for " + a[0].s);
     return Value::none();
   });
-  method(r, "LmfApi", "round", {"float", "int"}, "float", [](void *, Args &a) { return Value::real(round_decimal(a[0].f, (int)a[1].i)); });
+  method(r, "LmfApi", "round", {"float", "int"}, "float", [](void *, Args &a) { return Value::real(round_decimal(a[0].f, as_int(a[1]))); });
   method(r, "LmfApi", "money", {"float"}, "string", [](void *, Args &a) { return Value::string(money_text(a[0].f)); });
   method(r, "LmfApi", "fraction", {"float", "int"}, "string", [](void *, Args &a) { return Value::string(fraction_text(a[0].f, a[1].i)); });
   method(r, "LmfApi", "exp", {"float"}, "float", [](void *, Args &a) { return Value::real(math_exp(a[0].f)); });

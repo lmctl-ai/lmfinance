@@ -55,7 +55,9 @@ QuantLib classes where one is named; no code of any other tool was used.
 - **Item 12** is computed from the curve's discount factors at exact times k/freq (own code, a screen) rather than through a
   QuantLib `VanillaSwap`. A QuantLib swap is date-based: its accruals and the curve's times follow the calendar (a leap day
   makes the first year 366 days), so the textbook numbers (value 2.50, par rate 8/135 on the 0.96/0.90/0.84 curve) would only
-  appear on an evaluation date with no leap day in the term. The floating flow of a period is N (D(t - 1/f)/D(t) - 1): the
+  appear on an evaluation date with no leap day in the term. Measured with a scratch `VanillaSwap` (explicit annual schedules,
+  30/360 legs, an `IborIndex` with 1Y tenor and no fixing lag, the same curve): on 2025-01-02 it gives NPV 2.500000, legs
+  13.500000 / 16.000000 and fair rate 0.05925926; on 2024-01-02 it gives 2.518369, 13.497507 / 16.015876 and 0.05932902. The floating flow of a period is N (D(t - 1/f)/D(t) - 1): the
   curve's simple forward times the accrual 1/f. `swaption` refuses a `swap_simple` underlying.
 - **Item 18** `bond_accrued` keeps its existing per-100-face unit; the lesson multiplies by face/100.
 - Items 2, 3, 6, 9, 11, 15, 16, 17, 20 are own code as proposed; 4, 5, 14, 18 (dated bond), 19 use the named QuantLib classes.
