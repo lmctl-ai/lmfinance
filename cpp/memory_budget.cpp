@@ -22,7 +22,8 @@ namespace membudget {
 namespace {
 
 constexpr std::size_t kMiB = std::size_t(1) << 20;
-constexpr std::size_t kDefaultMiB = 4096;
+// 4096 MiB does not fit a 32-bit size_t (WebAssembly): there the default is 1024 MiB, below the 2 GiB address space.
+constexpr std::size_t kDefaultMiB = sizeof(std::size_t) >= 8 ? 4096 : 1024;
 constexpr std::size_t kReserve = 64 * kMiB;  // headroom granted once so the error can be reported
 
 std::atomic<std::int64_t> g_used{0};
