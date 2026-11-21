@@ -233,7 +233,19 @@ expect_error capmonths 'let v = pricing.capfloor_npv(instrument.cap(1000000.0, 0
 expect_error swaptionexp 'let v = pricing.swaption_npv(instrument.swaption(instrument.swap(1000000.0, 0.04, 5.0), 0.3), market.flat_curve(0.04), 0.2);' "whole number of months"
 expect_error noseries 'let s = risk.series("does-not-exist.csv");' "cannot open"
 expect_error seriesidx 'let s = risk.series("'"$WORK"'/pnl.csv"); let x = s.get(5);' "outside"
-ok "errors stop the program with exit 3 and a clear message (28 cases)"
+expect_error badcompound 'let c = market.flat_curve_compounded(0.05, "weekly");' "compounding must be"
+expect_error npvlengths 'let t = float_list().add(1.0); let a = float_list(); let v = pricing.npv(market.flat_curve(0.05), t, a);' "equally long"
+expect_error perpgrowth 'let v = pricing.perpetuity(100.0, 0.04, 0.05);' "must exceed the growth"
+expect_error treearb 'let r = pricing.tree_price(instrument.european_call(100.0, 1.0), model.binomial_tree(100.0, 1.2, 0.9, 0.25, 1));' "not arbitrage-free"
+expect_error treenode 'let t = model.binomial_tree(100.0, 1.2, 0.9, 0.05, 2); let s = t.stock(2, 3);' "outside 0..2"
+expect_error weightsum 'let w = float_list().add(0.5).add(0.6); let v = float_list().add(0.1).add(0.1); let c = float_list().add(1.0).add(0.0).add(0.0).add(1.0); let x = risk.portfolio_variance(w, v, c);' "must sum to 1"
+expect_error corrasym 'let w = float_list().add(0.5).add(0.5); let v = float_list().add(0.1).add(0.1); let c = float_list().add(1.0).add(0.2).add(0.3).add(1.0); let x = risk.portfolio_variance(w, v, c);' "must be symmetric"
+expect_error lossprob 'let d = risk.loss_distribution(float_list().add(1.0).add(2.0), float_list().add(0.5).add(0.6));' "must sum to 1"
+expect_error logneg 'let x = lmf.log(0.0 - 1.0);' "must be positive"
+expect_error forwardprice 'let p = pricing.price(instrument.forward(100.0, 1.0), model.black_scholes(100.0, 0.05, 0.0, 0.2), pricing.analytic());' "no option price"
+expect_error simpleswaption 'let s = instrument.swaption(instrument.swap_simple(100.0, 0.05, 3.0, 1), 1.0);' "not swap_simple"
+expect_error amortcolumn 'let a = pricing.amortization(1000.0, 0.1, 3, "total");' "column must be"
+ok "errors stop the program with exit 3 and a clear message (40 cases)"
 
 # --dry-run loads and verifies the program but runs nothing (no output files), both through
 # lmscript's dry invocation metadata and through the standalone host flag.
