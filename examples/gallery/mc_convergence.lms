@@ -10,7 +10,8 @@ lmf.assert_close(exact, 10.4506, 0.00005);
 let rows = "";
 let paths = 500;
 let inside = 0;
-for (k in range(0, 8)) {
+# 500 to 2 048 000 paths: one pricing takes at most 4 000 000 paths
+for (k in range(0, 7)) {
   let r = pricing.price(call, m, pricing.monte_carlo(paths, 7));
   rows = rows + str(paths) + " " + str(r.price()) + " " + str(r.stderr()) + "\n";
   if (abs(r.price() - exact) < 3.0 * r.stderr()) { inside = inside + 1; }
@@ -18,9 +19,9 @@ for (k in range(0, 8)) {
 }
 lmf.save_text("data/mc_estimates.csv", rows);
 lmf.save_text("data/mc_exact.csv", str(exact) + "\n");
-# the same seed gives the same estimate; seven of the eight estimates are within 3 standard errors
+# the same seed gives the same estimate; six of the seven estimates are within 3 standard errors
 lmf.assert_close(pricing.price(call, m, pricing.monte_carlo(4000, 7)).price(), pricing.price(call, m, pricing.monte_carlo(4000, 7)).price(), 0.0);
-lmf.check(inside >= 7, "seven of eight estimates within 3 standard errors");
+lmf.check(inside >= 6, "six of seven estimates within 3 standard errors");
 end _lmcode_
 r = run_lmcode(sim);
 assert(r.ok);
