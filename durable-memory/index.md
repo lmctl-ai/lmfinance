@@ -26,6 +26,7 @@ cmake --build build --parallel 4      # Build binary at build/lmfinance
 | [09-resource-limits.md](09-resource-limits.md) | Memory budget allocation (`LMFINANCE_MAX_MEMORY_MB`) |
 | [10-linux-glibc.md](10-linux-glibc.md) | System glibc baseline (>= 2.35), symbol allowlist, verification |
 | [11-invocation-envelope.md](11-invocation-envelope.md) | The one-envelope host answer: cli/load/run/app phases, dry mode, reserve |
+| [12-finance-track-additions.md](12-finance-track-additions.md) | Twenty additions for a textbook finance course: number helpers, per-period curves, trees, portfolios, loans, swaps |
 | [portable-gallery.md](portable-gallery.md) | Portable numeric markers and gnuplot stats integration |
 
 ## SDK pin and sync

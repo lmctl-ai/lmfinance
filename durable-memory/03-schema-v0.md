@@ -60,3 +60,7 @@ string `+`, but no `exp`/`log` (use `pow(2.718281828459045, x)`), no ternary and
   numpy's default), `var(conf) = -quantile(1 - conf)`, `es(conf)` = minus the mean of the samples at or below that quantile.
 - `HestonFit.fit` fails with "Heston calibration did not converge (<reason>)" unless Levenberg-Marquardt ends at a stationary
   point/value/accuracy, zero gradient or function-epsilon; MaxIterations and None are errors.
+
+## Added for the finance track
+
+Twenty further functions and the types `Tree`, `TreeResult`, `Strategy`, `LossDist` (number helpers, compounded and discount-factor curves, explicit binomial trees, portfolios, loan schedules, swap legs, bond cash flows): see [12-finance-track-additions.md](12-finance-track-additions.md).

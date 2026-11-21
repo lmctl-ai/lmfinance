@@ -7,8 +7,8 @@ Measured 2026-10-23, x86_64 Linux (WSL2), 4 cores, GCC, Ninja.
   `third_party/` (not in the binary).
 - `./test.sh` (19 checks): sdk pin; deps pin; build; `--version`; schema equals the registrations;
   embedded schema byte-identical; host registry equals compiler signatures; notices; Linux ELF dependency allowlist and glibc 2.35 ABI audit;
-  14 programs (9 under `tests/`, 5 under `examples/`) compile and run and pass their own asserts;
-  5 result files byte-identical on rerun; 28 error snippets exit 3 with a message naming the
+  15 programs (10 under `tests/`, 5 under `examples/`) compile and run and pass their own asserts;
+  5 result files byte-identical on rerun; 40 error snippets exit 3 with a message naming the
   problem; all 28 gallery examples when `lmplot` is on `PATH` or `LMFINANCE_TEST_NETWORK=1`;
   usage/load exit codes. With a warm build the whole script runs in about 7 s (Monte Carlo test 0.6 s).
 - `test.sh` also checks the memory budget (`09-resource-limits.md`): a runaway loop and 1e8 Monte
