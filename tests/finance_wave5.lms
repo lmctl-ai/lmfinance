@@ -1,0 +1,264 @@
+# Wave 5 additions (durable-memory/13-finance-wave5-additions.md): pinned closed-form values and cross-checks.
+p = _lmcode_ cli="lmfinance";
+market.set_date("2025-01-02");
+let a = pricing.analytic();
+let m = model.black_scholes(100.0, 0.05, 0.0, 0.2);
+let call = instrument.european_call(100.0, 1.0);
+let put = instrument.european_put(100.0, 1.0);
+
+# 1. standard normal distribution
+lmf.check(lmf.norm_cdf(0.0) == 0.5, "N(0) is one half");
+lmf.assert_close(lmf.norm_cdf(1.96), 0.975002104851780, 0.000000000000001);
+lmf.assert_close(lmf.norm_cdf(0.35), 0.636830651175619, 0.000000000000001);
+lmf.assert_close(lmf.norm_cdf(0.0 - 1.0) + lmf.norm_cdf(1.0), 1.0, 0.000000000000001);
+lmf.assert_close(lmf.norm_pdf(0.0), 0.398942280401433, 0.000000000000001);
+lmf.assert_close(lmf.norm_pdf(0.35), 0.375240346916938, 0.000000000000001);
+# the quantile is Acklam's approximation: about 1e-9 from the exact 1.959963984540054 and 2.326347874040841
+lmf.assert_close(lmf.norm_inv(0.975), 1.959963984540054, 0.00000001);
+lmf.assert_close(lmf.norm_inv(0.99), 2.326347874040841, 0.00000001);
+lmf.assert_close(lmf.norm_inv(0.975), 1.95996398612051, 0.000000000001);
+lmf.check(lmf.norm_inv(0.5) == 0.0, "median is zero");
+lmf.assert_close(lmf.norm_cdf(lmf.norm_inv(0.2)), 0.2, 0.00000001);
+# risk.var_normal is the same quantile
+lmf.assert_close(risk.var_normal(1.0, 1.0, 0.99, 252.0), lmf.norm_inv(0.99), 0.000000000000001);
+
+# 2. d1 and d2 of the analytic engine
+lmf.assert_close(pricing.bs_d1(call, m), 0.35, 0.000000000000001);
+lmf.assert_close(pricing.bs_d2(call, m), 0.15, 0.000000000000001);
+lmf.assert_close(pricing.bs_d1(put, m), 0.35, 0.000000000000001);
+let ra = pricing.price(call, m, a);
+lmf.assert_close(lmf.norm_cdf(pricing.bs_d1(call, m)), ra.delta(), 0.00000000000001);
+# price = S N(d1) - K e^(-rT) N(d2)
+lmf.assert_close(100.0 * lmf.norm_cdf(pricing.bs_d1(call, m)) - 100.0 * lmf.exp(0.0 - 0.05) * lmf.norm_cdf(pricing.bs_d2(call, m)), ra.price(), 0.0000000000001);
+# vega and gamma by hand from the density
+lmf.assert_close(100.0 * lmf.norm_pdf(pricing.bs_d1(call, m)), ra.vega(), 0.000000000001);
+lmf.assert_close(lmf.norm_pdf(pricing.bs_d1(call, m)) / (100.0 * 0.2), ra.gamma(), 0.00000000000001);
+# half a year is 183 days: d1 uses 183/365 like the engine, so N(d1) is still the delta (0.5 exactly would give 0.2475)
+let half = instrument.european_call(100.0, 0.5);
+let th = 183.0 / 365.0;
+lmf.assert_close(pricing.bs_d1(half, m), (0.05 + 0.02) * th / (0.2 * sqrt(th)), 0.00000000000001);
+lmf.assert_close(pricing.bs_d1(half, m), 0.247826165323959, 0.00000000000001);
+lmf.assert_close(lmf.norm_cdf(pricing.bs_d1(half, m)), pricing.price(half, m, a).delta(), 0.00000000000001);
+lmf.assert_close(pricing.bs_d1(half, m) - pricing.bs_d2(half, m), 0.2 * sqrt(th), 0.00000000000001);
+# with a dividend yield the delta is e^(-qT) N(d1)
+let mq = model.black_scholes(100.0, 0.05, 0.02, 0.2);
+lmf.assert_close(lmf.exp(0.0 - 0.02 * th) * lmf.norm_cdf(pricing.bs_d1(half, mq)), pricing.price(half, mq, a).delta(), 0.00000000000001);
+
+# 3. plain Monte Carlo (no antithetic variate, no control variate)
+let plain = pricing.monte_carlo_plain(10000, 42);
+lmf.check(plain.name() == "monte_carlo_plain", "engine name");
+lmf.check(pricing.monte_carlo(10000, 42).name() == "monte_carlo", "the existing engine keeps its name");
+let rp = pricing.price(call, m, plain);
+let rv = pricing.price(call, m, pricing.monte_carlo(10000, 42));
+lmf.assert_close(rp.price(), 10.3470376223114, 0.000000001);
+lmf.assert_close(rp.stderr(), 0.145036190939729, 0.000000001);
+lmf.assert_close(rv.price(), 10.431282614005202, 0.000000001);
+lmf.assert_close(rv.stderr(), 0.07384623684671558, 0.000000001);
+lmf.check(abs(rp.price() - ra.price()) < 4.0 * rp.stderr(), "plain estimate inside 4 standard errors");
+lmf.check(rp.stderr() > 1.9 * rv.stderr(), "the antithetic variate halves the standard error here");
+lmf.assert_close(pricing.price(call, m, pricing.monte_carlo_plain(10000, 42)).price(), rp.price(), 0.0);
+lmf.check(pricing.price(call, m, pricing.monte_carlo_plain(10000, 43)).price() != rp.price(), "seeds differ");
+lmf.assert_close(pricing.price(call, m, pricing.monte_carlo_plain(40000, 42)).stderr() / rp.stderr(), 0.5, 0.02);
+let asian = instrument.asian_call(100.0, 1.0, "arithmetic", 12);
+let ap = pricing.price(asian, m, plain);
+let av = pricing.price(asian, m, pricing.monte_carlo(10000, 42));
+lmf.assert_close(ap.price(), 6.14897085224217, 0.000000001);
+lmf.assert_close(ap.stderr(), 0.0855172204422917, 0.000000001);
+lmf.assert_close(av.price(), 6.156465446721795, 0.000000001);
+lmf.check(abs(ap.price() - av.price()) < 4.0 * ap.stderr(), "plain and controlled Asian estimates agree");
+lmf.check(ap.stderr() > 30.0 * av.stderr(), "the control variate cuts the Asian standard error by more than 30");
+lmf.assert_close(risk.delta(call, m, pricing.monte_carlo_plain(20000, 7)), 0.6368, 0.02);
+
+# 4. risk-neutral samples
+let ts = model.terminal_samples(m, 1.0, 10000, 42);
+lmf.check(ts.len() == 10000, "n samples");
+lmf.assert_close(ts.at(0), 96.6600039801538, 0.000000001);
+lmf.assert_close(ts.at(1), 121.636547890394, 0.000000001);
+lmf.assert_close(ts.at(4), 116.622370699984, 0.000000001);
+let s1 = 0.0; let s2 = 0.0; let sm = 0.0;
+for (i in range(0, ts.len())) {
+  let v = call.payoff(ts.at(i)) * lmf.exp(0.0 - 0.05);
+  s1 = s1 + v; s2 = s2 + v * v; sm = sm + ts.at(i);
+}
+let est = s1 / 10000.0;
+let se = sqrt((s2 / 10000.0 - est * est) / 9999.0);
+# the reader's own loop is the plain engine: same generator, same draws
+lmf.assert_close(est, rp.price(), 0.000000000001);
+lmf.assert_close(se, rp.stderr(), 0.000000000001);
+# E[S_T] = S e^(rT) = 105.127; the standard error of the mean is 0.21
+lmf.assert_close(sm / 10000.0, 100.0 * lmf.exp(0.05), 0.85);
+let sp = model.sample_path(m, 1.0, 4, 42);
+lmf.check(sp.len() == 5, "steps + 1 points");
+lmf.check(sp.at(0) == 100.0, "the path starts at the spot");
+lmf.assert_close(sp.at(1), 97.5812092582015, 0.000000001);
+lmf.assert_close(sp.at(4), 116.870358090175, 0.000000001);
+lmf.assert_close(model.sample_path(m, 1.0, 1, 42).at(1), ts.at(0), 0.000000000001);
+lmf.assert_close(model.sample_path(m, 1.0, 4, 42).at(4), sp.at(4), 0.0);
+lmf.check(model.sample_path(m, 1.0, 4, 43).at(4) != sp.at(4), "seeds differ");
+# years are on the day grid like an option's: 0.5 is 183 days
+lmf.assert_close(model.terminal_samples(m, 0.5, 1, 42).at(0), model.terminal_samples(m, th, 1, 42).at(0), 0.0);
+
+# 5. payoff on a given path
+let path = float_list().add(100.0).add(110.0).add(125.0).add(105.0);
+lmf.check(call.path_payoff(path) == 5.0, "plain call: last price");
+lmf.check(put.path_payoff(path) == 0.0, "plain put: last price");
+lmf.check(instrument.forward(100.0, 1.0).path_payoff(path) == 5.0, "forward: last price minus delivery price");
+lmf.check(instrument.barrier_call(100.0, 1.0, 120.0, "up-out").path_payoff(path) == 0.0, "up-out: 125 knocks it out");
+lmf.check(instrument.barrier_call(100.0, 1.0, 120.0, "up-in").path_payoff(path) == 5.0, "up-in: 125 knocks it in");
+lmf.check(instrument.barrier_call(100.0, 1.0, 125.0, "up-out").path_payoff(path) == 0.0, "touching the barrier counts");
+lmf.check(instrument.barrier_call(100.0, 1.0, 126.0, "up-out").path_payoff(path) == 5.0, "up-out: never reached");
+lmf.check(instrument.barrier_put(110.0, 1.0, 90.0, "down-out").path_payoff(path) == 5.0, "down-out: never reached");
+lmf.check(instrument.barrier_put(110.0, 1.0, 90.0, "down-in").path_payoff(path) == 0.0, "down-in: never reached");
+lmf.check(instrument.barrier_put(110.0, 1.0, 100.0, "down-in").path_payoff(path) == 5.0, "the first point counts too");
+# Asian: mean of 110, 125, 105 (the points after the first): 340/3 and (110 * 125 * 105)^(1/3)
+lmf.assert_close(instrument.asian_call(100.0, 1.0, "arithmetic", 3).path_payoff(path), 40.0 / 3.0, 0.0000000000001);
+lmf.assert_close(instrument.asian_call(100.0, 1.0, "geometric", 3).path_payoff(path), pow(1443750.0, 1.0 / 3.0) - 100.0, 0.000000000001);
+lmf.assert_close(instrument.asian_put(120.0, 1.0, "arithmetic", 3).path_payoff(path), 20.0 / 3.0, 0.0000000000001);
+
+# 6. barrier options by simulation, monitored at the steps only
+let uo = instrument.barrier_call(100.0, 1.0, 120.0, "up-out");
+let ui = instrument.barrier_call(100.0, 1.0, 120.0, "up-in");
+let st = pricing.monte_carlo_steps(100000, 42, 10);
+lmf.check(st.name() == "monte_carlo_steps", "engine name");
+let bo = pricing.price(uo, m, st);
+let bi = pricing.price(ui, m, st);
+lmf.assert_close(bo.price(), 1.93431948378999, 0.000000001);
+lmf.assert_close(bo.stderr(), 0.0134091168209554, 0.000000001);
+# knocked in plus knocked out is the plain call on the same paths
+lmf.check(abs(bo.price() + bi.price() - ra.price()) < 4.0 * 0.0466, "in + out inside 4 standard errors of the plain call");
+# ten monitoring dates miss crossings: dearer than the continuously monitored closed form 1.1761, and closer with more steps
+let cont = pricing.price(uo, m, a).price();
+lmf.assert_close(cont, 1.1760653996503727, 0.000000000001);
+lmf.check(bo.price() > cont + 20.0 * bo.stderr(), "discrete monitoring is dearer for a knock-out");
+let b100 = pricing.price(uo, m, pricing.monte_carlo_steps(40000, 42, 100));
+lmf.check(b100.price() < bo.price() && b100.price() > cont, "100 steps lie between 10 steps and the closed form");
+# the same estimate from the reader's own loop over sample_path and path_payoff (independent code and draws)
+let acc = 0.0; let acc2 = 0.0;
+for (k in range(1, 10001)) {
+  let v = uo.path_payoff(model.sample_path(m, 1.0, 10, k)) * lmf.exp(0.0 - 0.05);
+  acc = acc + v; acc2 = acc2 + v * v;
+}
+let own = acc / 10000.0;
+let own_se = sqrt((acc2 / 10000.0 - own * own) / 9999.0);
+lmf.check(abs(own - bo.price()) < 4.0 * sqrt(own_se * own_se + bo.stderr() * bo.stderr()), "own barrier simulation agrees with the engine");
+
+# 7. Black 76 and Bachelier
+# at the money: F (2 N(vol sqrt(T) / 2) - 1)
+lmf.assert_close(pricing.black76("call", 0.04, 0.04, 0.2, 1.0, 1.0), 0.04 * (2.0 * lmf.norm_cdf(0.1) - 1.0), 0.0000000000000001);
+lmf.assert_close(pricing.black76("call", 0.04, 0.04, 0.2, 1.0, 1.0), 0.00318622698216232, 0.0000000000000001);
+lmf.assert_close(pricing.black76("put", 0.05, 0.04, 0.2, 2.0, 0.9), 0.00138719353577337, 0.0000000000000001);
+# call - put = discount (F - K)
+lmf.assert_close(pricing.black76("call", 0.05, 0.04, 0.2, 2.0, 0.9) - pricing.black76("put", 0.05, 0.04, 0.2, 2.0, 0.9), 0.9 * 0.01, 0.0000000000000001);
+# Black-Scholes is Black 76 on the forward S e^(rT) with discount e^(-rT)
+lmf.assert_close(pricing.black76("call", 100.0 * lmf.exp(0.05), 100.0, 0.2, 1.0, lmf.exp(0.0 - 0.05)), ra.price(), 0.0000000000001);
+# Bachelier at the money: discount * vol sqrt(T) / sqrt(2 pi); works for a negative forward
+lmf.assert_close(pricing.bachelier("call", 0.03, 0.03, 0.01, 4.0, 0.95), 0.95 * 0.02 * lmf.norm_pdf(0.0), 0.0000000000000001);
+lmf.assert_close(pricing.bachelier("call", 0.0 - 0.005, 0.0, 0.01, 1.0, 0.95), 0.00187906729531241, 0.0000000000000001);
+lmf.assert_close(pricing.bachelier("call", 0.0 - 0.005, 0.0, 0.01, 1.0, 0.95) - pricing.bachelier("put", 0.0 - 0.005, 0.0, 0.01, 1.0, 0.95), 0.0 - 0.95 * 0.005, 0.0000000000000001);
+
+# 8. caplets, forwards, the cap's own swap, the swaption annuity (evaluation date 2025-01-02)
+let fc = market.flat_curve(0.04);
+let cap = instrument.cap(1000000.0, 0.04, 5.0);
+let flr = instrument.floor(1000000.0, 0.04, 5.0);
+let cl = pricing.capfloor_caplets(cap, fc, 0.2);
+let fl = pricing.capfloor_caplets(flr, fc, 0.2);
+let fw = pricing.capfloor_forwards(cap, fc);
+lmf.check(cl.len() == 9 && fl.len() == 9 && fw.len() == 9, "a 5-year cap on 6M has 9 caplets (the first period is left out)");
+let csum = 0.0; let fsum = 0.0;
+for (i in range(0, 9)) { csum = csum + cl.at(i); fsum = fsum + fl.at(i); }
+let capv = pricing.capfloor_npv(cap, fc, 0.2);
+let flv = pricing.capfloor_npv(flr, fc, 0.2);
+lmf.assert_close(capv, 18922.45882393696, 0.00000001);
+lmf.check(abs(csum - capv) <= 0.0000000001 * capv, "caplets sum to the cap to 1e-10 relative");
+lmf.check(abs(fsum - flv) <= 0.0000000001 * flv, "floorlets sum to the floor to 1e-10 relative");
+# the first caplet is the 1-year cap
+lmf.assert_close(cl.at(0), pricing.capfloor_npv(instrument.cap(1000000.0, 0.04, 1.0), fc, 0.2), 0.000000001);
+lmf.assert_close(cl.at(0), 1061.08849207054, 0.00000001);
+lmf.assert_close(cl.at(8), 2791.11539655291, 0.00000001);
+lmf.assert_close(fw.at(0), 0.0398503141015465, 0.00000000000001);
+lmf.assert_close(fw.at(8), 0.0398546961769128, 0.00000000000001);
+# cap - floor is the swap on the cap's own periods (receive floating, pay the strike)
+let cswap = pricing.capfloor_swap_npv(cap, fc);
+lmf.assert_close(cswap, 0.0 - 609.029649175757, 0.00000001);
+lmf.check(abs(cswap - (capv - flv)) <= 0.000000001 * abs(cswap), "cap - floor = swap to 1e-9 relative");
+lmf.assert_close(pricing.capfloor_swap_npv(flr, fc), cswap, 0.0);
+# at the cap's ATM rate that swap is worth nothing
+let atm = pricing.capfloor_atm_rate(cap, fc);
+lmf.assert_close(pricing.capfloor_swap_npv(instrument.cap(1000000.0, atm, 5.0), fc), 0.0, 0.0000001);
+# a caplet by hand: 12M-18M starts 2026-01-06 and pays 2026-07-06 (181 days, Act/360), fixing on 2026-01-02 (T = 1 year)
+lmf.assert_close(cl.at(1), 1469.1690244637946, 0.000001);
+lmf.assert_close(cl.at(1), 1000000.0 * (181.0 / 360.0) * pricing.black76("call", fw.at(1), 0.04, 0.2, 1.0, fc.discount(550.0 / 365.0)), 0.000001);
+
+let pay = instrument.swaption(instrument.swap(1000000.0, 0.04, 5.0), 1.0);
+let rec = instrument.swaption(instrument.swap(1000000.0, 0.04, 5.0).receiver(), 1.0);
+let ann = pricing.swaption_annuity(pay, fc);
+let fwd = pricing.swaption_forward_rate(pay, fc);
+let vp = pricing.swaption_npv(pay, fc, 0.2);
+let vr = pricing.swaption_npv(rec, fc, 0.2);
+lmf.assert_close(ann, 4265397.257471443, 0.000001);
+lmf.assert_close(pricing.swaption_annuity(rec, fc), ann, 0.0);
+lmf.assert_close(vp, 15582.603636292406, 0.0000001);
+# Black 76 on the forward swap rate times the annuity is the swaption (the option runs 365 days: T = 1)
+lmf.check(abs(ann * pricing.black76("call", fwd, 0.04, 0.2, 1.0, 1.0) - vp) <= 0.000000000001 * vp, "payer = annuity * Black76 call");
+lmf.check(abs(ann * pricing.black76("put", fwd, 0.04, 0.2, 1.0, 1.0) - vr) <= 0.000000000001 * vr, "receiver = annuity * Black76 put");
+lmf.assert_close(vp - vr, ann * (fwd - 0.04), 0.00000001);
+# a 6-month expiry runs 181 days: T = 181/365
+let p6 = instrument.swaption(instrument.swap(1000000.0, 0.04, 5.0), 0.5);
+let v6 = pricing.swaption_npv(p6, fc, 0.2);
+lmf.check(abs(pricing.swaption_annuity(p6, fc) * pricing.black76("call", pricing.swaption_forward_rate(p6, fc), 0.04, 0.2, 181.0 / 365.0, 1.0) - v6) <= 0.000000000001 * v6, "6-month payer");
+
+# 9. smile and the calibration report
+let hm = model.heston(100.0, 0.05, 0.0, 0.04, 1.5, 0.04, 0.3, 0.0 - 0.7);
+let ks = float_list();
+for (i in range(0, 9)) { ks.add(70.0 + 7.5 * float(i)); }
+let iv = calibration.smile(hm, ks, 1.0);
+lmf.check(iv.len() == 9, "one volatility per strike");
+lmf.assert_close(iv.at(0), 0.2512296487344677, 0.0000000001);
+lmf.assert_close(iv.at(4), 0.197635048981825, 0.0000000001);
+lmf.assert_close(iv.at(8), 0.15692756480113715, 0.0000000001);
+# the same number as the long way: price on the Heston model, invert on a Black-Scholes model
+let k85 = instrument.european_call(85.0, 1.0);
+lmf.assert_close(iv.at(2), calibration.implied_vol(k85, m, a, pricing.price(k85, hm, a).price()), 0.0);
+let flat = calibration.smile(m, ks, 1.0);
+lmf.check(flat.at(0) == 0.2 && flat.at(8) == 0.2, "a Black-Scholes model has a flat smile, exactly");
+let truth = model.heston(100.0, 0.05, 0.0, 0.04, 1.5, 0.05, 0.5, 0.0 - 0.6);
+let k5 = float_list().add(80.0).add(90.0).add(100.0).add(110.0).add(120.0);
+let fit = calibration.heston(100.0, 0.05, 0.0);
+for (j in range(0, 3)) {
+  let yrs = float(j + 1);
+  let q = calibration.smile(truth, k5, yrs);
+  for (i in range(0, 5)) { fit.quote(k5.at(i), yrs, lmf.round(q.at(i), 4)); }
+}
+fit.guess(0.06, 1.0, 0.06, 0.8, 0.0 - 0.3);
+let fitted = fit.fit();
+let er = fit.errors();
+lmf.check(er.len() == 15, "one error per quote");
+let sse = 0.0;
+for (i in range(0, 15)) { sse = sse + er.at(i) * er.at(i); lmf.check(abs(er.at(i)) < 0.0002, "quotes rounded to 4 digits are fitted within 2e-4"); }
+lmf.assert_close(sqrt(sse / 15.0), fit.error(), 0.000000000000001);
+# errors() is model implied volatility minus the quoted volatility
+let back = calibration.smile(fitted, k5, 1.0);
+lmf.assert_close(er.at(2), back.at(2) - lmf.round(calibration.smile(truth, k5, 1.0).at(2), 4), 0.0000001);
+lmf.check(fit.evaluations() >= 6 && fit.evaluations() <= 800, "evaluations counted");
+lmf.check(fit.reason() == "StationaryFunctionValue" || fit.reason() == "StationaryPoint" || fit.reason() == "StationaryFunctionAccuracy" || fit.reason() == "ZeroGradientNorm" || fit.reason() == "FunctionEpsilonTooSmall", "reason is an end criterion");
+lmf.assert_close(fitted.param("rho"), 0.0 - 0.6, 0.02);
+
+# 10. yield DV01 for the bond's face: modified duration * dirty value * 1 bp
+let b = instrument.bond(1000.0, 0.05, 10.0, 1);
+lmf.assert_close(risk.bond_dv01_yield(b, 0.05), 0.7721734929184812, 0.000000000001);
+lmf.assert_close(risk.bond_dv01_yield(b, 0.05), pricing.bond_duration(b, 0.05) * pricing.bond_price_from_yield(b, 0.05) * 10.0 * 0.0001, 0.000000000001);
+# bump and reprice (central difference of 1 bp, per 100 times face/100) agrees to 2e-7 relative
+let bump = (pricing.bond_price_from_yield(b, 0.0499) - pricing.bond_price_from_yield(b, 0.0501)) / 2.0 * 10.0;
+lmf.assert_close(bump, 0.7721736303739846, 0.0000000001);
+lmf.check(abs(risk.bond_dv01_yield(b, 0.05) - bump) < 0.000001 * bump, "DV01 agrees with bump-and-reprice to 1e-6 relative");
+let b2 = instrument.bond(1000.0, 0.05, 10.0, 2);
+lmf.assert_close(risk.bond_dv01_yield(b2, 0.05), 0.779458114282341, 0.000000000001);
+# a zero bond: T / (1 + y) * P * 1 bp
+lmf.assert_close(risk.bond_dv01_yield(instrument.zero_bond(1000.0, 5.0), 0.05), 5.0 / 1.05 * 1000.0 / pow(1.05, 5.0) * 0.0001, 0.000000000001);
+# the yield guard leaves every yield above -100% per period alone
+lmf.assert_close(pricing.bond_duration(b, 0.0), 8.5, 0.000000000001);
+lmf.assert_close(pricing.bond_duration(b2, 0.0 - 1.5), 39.9784946236571, 0.00000001);
+end _lmcode_
+r = run_lmcode(p);
+println(json_stringify(r));
+require(r.ok, "finance_wave5 failed");

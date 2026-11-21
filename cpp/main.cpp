@@ -246,6 +246,7 @@ void register_host(dslvm::Registry &r, Host &h) {
   method(r, "Strategy", "profit", {"float", "float"}, "float", [](void *p, Args &a) { return Value::real(strategy_payoff(self<Strategy>(p), a[0].f) - a[1].f); });
   method(r, "Strategy", "payoffs", {"float", "float", "int"}, "FloatList", [&r](void *p, Args &a) { return make_flist(r, strategy_payoffs(self<Strategy>(p), a[0].f, a[1].f, as_int(a[2]))); });
   method(r, "Option", "payoff", {"float"}, "float", [](void *p, Args &a) { return Value::real(option_payoff(self<Option>(p), a[0].f)); });
+  method(r, "Option", "path_payoff", {"FloatList"}, "float", [](void *p, Args &a) { return Value::real(path_payoff(self<Option>(p), flist(a[0]))); });
   method(r, "Option", "strike", {}, "float", [](void *p, Args &) { return Value::real(self<Option>(p).strike); });
   method(r, "Option", "years", {}, "float", [](void *p, Args &) { return Value::real(self<Option>(p).years); });
   method(r, "Bond", "years", {}, "float", [](void *p, Args &) { return Value::real(self<Bond>(p).years); });
@@ -283,6 +284,13 @@ void register_host(dslvm::Registry &r, Host &h) {
     need(m.v0 > 0 && m.kappa > 0 && m.theta > 0 && m.sigma > 0, "model.heston: v0, kappa, theta and sigma must be positive");
     need(m.rho > -1 && m.rho < 1, "model.heston: rho must be inside (-1, 1)");
     return h.hold(h.models, "Model", m);
+  });
+  // Wave 5: risk-neutral Black-Scholes samples (durable-memory/13). Seeded, never the clock.
+  method(r, "ModelApi", "terminal_samples", {"Model", "float", "int", "int"}, "FloatList", [&r](void *, Args &a) {
+    return make_flist(r, terminal_samples(obj<Model>(a[0]), a[1].f, a[2].i, a[3].i));
+  });
+  method(r, "ModelApi", "sample_path", {"Model", "float", "int", "int"}, "FloatList", [&r](void *, Args &a) {
+    return make_flist(r, sample_path(obj<Model>(a[0]), a[1].f, a[2].i, a[3].i));
   });
   // Explicit binomial tree with a SIMPLE rate per step (no volatility): the model of the one- and multi-period lessons.
   method(r, "ModelApi", "binomial_tree", {"float", "float", "float", "float", "int"}, "Tree", [&h](void *, Args &a) {
@@ -352,6 +360,41 @@ void register_host(dslvm::Registry &r, Host &h) {
     need(a[1].i >= 1, "pricing.monte_carlo: seed must be at least 1 (0 would mean a clock-based seed)");
     Engine e = make_engine(EngineKind::MonteCarlo); e.paths = a[0].i; e.seed = a[1].i; return h.hold(h.engines, "Engine", e);
   });
+  // Wave 5. Plain Monte Carlo: no antithetic variate and, for an arithmetic Asian, no control variate.
+  auto mc_args = [](const char *who, Args &a) {
+    need(a[0].i >= 1 && a[0].i <= mc_max_paths, "monte carlo: paths must be 1.." + std::to_string(mc_max_paths) + ", got " + std::to_string(a[0].i));
+    need(a[0].i >= 2, "monte carlo: the standard error needs at least 2 paths, got " + std::to_string(a[0].i));
+    need(a[1].i >= 1 && a[1].i <= 2147483647LL, std::string(who) + ": seed must be 1..2147483647 (0 would mean a clock-based seed), got " + std::to_string(a[1].i));
+  };
+  method(r, "PricingApi", "monte_carlo_plain", {"int", "int"}, "Engine", [&h, mc_args](void *, Args &a) {
+    mc_args("pricing.monte_carlo_plain", a);
+    Engine e = make_engine(EngineKind::MonteCarlo); e.paths = a[0].i; e.seed = a[1].i; e.plain = true; return h.hold(h.engines, "Engine", e);
+  });
+  // Barrier options by simulation on `steps` equal time steps, monitored at the simulated points only (plain paths).
+  method(r, "PricingApi", "monte_carlo_steps", {"int", "int", "int"}, "Engine", [&h, mc_args](void *, Args &a) {
+    mc_args("pricing.monte_carlo_steps", a);
+    need(a[2].i >= 1 && a[2].i <= 1000, "pricing.monte_carlo_steps: steps must be 1..1000, got " + std::to_string(a[2].i));
+    need(a[0].i * a[2].i <= mc_max_paths, "monte carlo: paths times steps must be at most " + std::to_string(mc_max_paths) + ", got " +
+                                              std::to_string(a[0].i) + " x " + std::to_string(a[2].i) + " = " + std::to_string(a[0].i * a[2].i));
+    Engine e = make_engine(EngineKind::MonteCarlo); e.paths = a[0].i; e.seed = a[1].i; e.steps = as_int(a[2]); e.plain = true; e.stepped = true;
+    return h.hold(h.engines, "Engine", e);
+  });
+  method(r, "PricingApi", "bs_d1", {"Option", "Model"}, "float", [&h](void *, Args &a) { return Value::real(bs_d1(h.clock, obj<Option>(a[0]), obj<Model>(a[1]))); });
+  method(r, "PricingApi", "bs_d2", {"Option", "Model"}, "float", [&h](void *, Args &a) { return Value::real(bs_d2(h.clock, obj<Option>(a[0]), obj<Model>(a[1]))); });
+  method(r, "PricingApi", "black76", {"string", "float", "float", "float", "float", "float"}, "float", [](void *, Args &a) {
+    return Value::real(black76(a[0].s, a[1].f, a[2].f, a[3].f, a[4].f, a[5].f));
+  });
+  method(r, "PricingApi", "bachelier", {"string", "float", "float", "float", "float", "float"}, "float", [](void *, Args &a) {
+    return Value::real(bachelier(a[0].s, a[1].f, a[2].f, a[3].f, a[4].f, a[5].f));
+  });
+  method(r, "PricingApi", "capfloor_caplets", {"CapFloor", "Curve", "float"}, "FloatList", [&h, &r](void *, Args &a) {
+    return make_flist(r, capfloor_caplets(h.clock, obj<CapFloor>(a[0]), obj<Curve>(a[1]), a[2].f));
+  });
+  method(r, "PricingApi", "capfloor_forwards", {"CapFloor", "Curve"}, "FloatList", [&h, &r](void *, Args &a) {
+    return make_flist(r, capfloor_forwards(h.clock, obj<CapFloor>(a[0]), obj<Curve>(a[1])));
+  });
+  method(r, "PricingApi", "capfloor_swap_npv", {"CapFloor", "Curve"}, "float", [&h](void *, Args &a) { return Value::real(capfloor_swap_npv(h.clock, obj<CapFloor>(a[0]), obj<Curve>(a[1]))); });
+  method(r, "PricingApi", "swaption_annuity", {"Swaption", "Curve"}, "float", [&h](void *, Args &a) { return Value::real(swaption_annuity(h.clock, obj<Swaption>(a[0]), obj<Curve>(a[1]))); });
   method(r, "PricingApi", "price", {"Option", "Model", "Engine"}, "Result", [&h](void *, Args &a) {
     return h.hold(h.results, "Result", price_option(h.clock, obj<Option>(a[0]), obj<Model>(a[1]), obj<Engine>(a[2])));
   });
@@ -402,7 +445,10 @@ void register_host(dslvm::Registry &r, Host &h) {
 
   method(r, "Engine", "name", {}, "string", [](void *p, Args &) {
     static const char *n[] = {"analytic", "binomial", "finite_diff", "monte_carlo", "baw"};
-    return Value::string(n[static_cast<int>(self<Engine>(p).kind)]);
+    const Engine &e = self<Engine>(p);
+    if (e.kind == EngineKind::MonteCarlo && e.stepped) return Value::string("monte_carlo_steps");
+    if (e.kind == EngineKind::MonteCarlo && e.plain) return Value::string("monte_carlo_plain");
+    return Value::string(n[static_cast<int>(e.kind)]);
   });
   method(r, "Result", "price", {}, "float", [](void *p, Args &) { return Value::real(self<Result>(p).price); });
   method(r, "Result", "stderr", {}, "float", [](void *p, Args &) { return Value::real(provided(self<Result>(p).stderr_, "stderr")); });
@@ -425,6 +471,8 @@ void register_host(dslvm::Registry &r, Host &h) {
     Curve up = bump_curve(obj<Curve>(a[1]), 1e-4), dn = bump_curve(obj<Curve>(a[1]), -1e-4);
     return Value::real((bond_npv(h.clock, obj<Bond>(a[0]), dn) - bond_npv(h.clock, obj<Bond>(a[0]), up)) / 2.0);
   });
+  // Textbook yield DV01: modified duration x dirty value x 1 bp, in currency for the bond's face (durable-memory/13).
+  method(r, "RiskApi", "bond_dv01_yield", {"Bond", "float"}, "float", [&h](void *, Args &a) { return Value::real(bond_dv01_yield(h.clock, obj<Bond>(a[0]), a[1].f)); });
   method(r, "RiskApi", "swap_dv01", {"Swap", "Curve"}, "float", [&h](void *, Args &a) {
     Curve up = bump_curve(obj<Curve>(a[1]), 1e-4), dn = bump_curve(obj<Curve>(a[1]), -1e-4);
     return Value::real((swap_npv(h.clock, obj<Swap>(a[0]), up) - swap_npv(h.clock, obj<Swap>(a[0]), dn)) / 2.0);
@@ -521,6 +569,22 @@ void register_host(dslvm::Registry &r, Host &h) {
     return Value::real(self<HestonFit>(p).error);
   });
 
+  method(r, "HestonFit", "errors", {}, "FloatList", [&r](void *p, Args &) {
+    need(self<HestonFit>(p).evaluations >= 0, "HestonFit.errors: call fit() first");
+    return make_flist(r, self<HestonFit>(p).errors);
+  });
+  method(r, "HestonFit", "evaluations", {}, "int", [](void *p, Args &) {
+    need(self<HestonFit>(p).evaluations >= 0, "HestonFit.evaluations: call fit() first");
+    return Value::integer(self<HestonFit>(p).evaluations);
+  });
+  method(r, "HestonFit", "reason", {}, "string", [](void *p, Args &) {
+    need(self<HestonFit>(p).evaluations >= 0, "HestonFit.reason: call fit() first");
+    return Value::string(self<HestonFit>(p).reason);
+  });
+  method(r, "CalibrationApi", "smile", {"Model", "FloatList", "float"}, "FloatList", [&h, &r](void *, Args &a) {
+    return make_flist(r, smile(h.clock, obj<Model>(a[0]), finite_list(a[1], "calibration.smile"), a[2].f));
+  });
+
   // ---------------------------------------------------------------- lmf (checks and output)
   method(r, "LmfApi", "assert_close", {"float", "float", "float"}, "void", [](void *, Args &a) {
     if (!(std::fabs(a[0].f - a[1].f) <= a[2].f))
@@ -544,6 +608,9 @@ void register_host(dslvm::Registry &r, Host &h) {
   method(r, "LmfApi", "fraction", {"float", "int"}, "string", [](void *, Args &a) { return Value::string(fraction_text(a[0].f, a[1].i)); });
   method(r, "LmfApi", "exp", {"float"}, "float", [](void *, Args &a) { return Value::real(math_exp(a[0].f)); });
   method(r, "LmfApi", "log", {"float"}, "float", [](void *, Args &a) { return Value::real(math_log(a[0].f)); });
+  method(r, "LmfApi", "norm_cdf", {"float"}, "float", [](void *, Args &a) { return Value::real(norm_cdf(a[0].f)); });
+  method(r, "LmfApi", "norm_pdf", {"float"}, "float", [](void *, Args &a) { return Value::real(norm_pdf(a[0].f)); });
+  method(r, "LmfApi", "norm_inv", {"float"}, "float", [](void *, Args &a) { return Value::real(norm_inv(a[0].f)); });
   method(r, "LmfApi", "print", {"string"}, "void", [](void *, Args &a) { std::cout << a[0].s << std::endl; return Value::none(); });
   method(r, "LmfApi", "version", {}, "string", [](void *, Args &) { return Value::string("lmfinance " LMFINANCE_VERSION); });
 }

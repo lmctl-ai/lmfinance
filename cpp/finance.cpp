@@ -19,6 +19,10 @@
 #include <ql/pricingengines/asian/analytic_discr_geom_av_price.hpp>
 #include <ql/pricingengines/asian/mc_discr_arith_av_price.hpp>
 #include <ql/pricingengines/barrier/analyticbarrierengine.hpp>
+#include <ql/pricingengines/barrier/mcbarrierengine.hpp>
+#include <ql/pricingengines/blackformula.hpp>
+#include <ql/cashflows/floatingratecoupon.hpp>
+#include <ql/math/randomnumbers/mt19937uniformrng.hpp>
 #include <ql/pricingengines/capfloor/blackcapfloorengine.hpp>
 #include <ql/pricingengines/swaption/blackswaptionengine.hpp>
 #include <ql/math/distributions/normaldistribution.hpp>
@@ -127,6 +131,16 @@ template <class Tree> ext::shared_ptr<PricingEngine> tree_engine(const ext::shar
   return ext::make_shared<BinomialVanillaEngine<Tree>>(p, n);
 }
 
+// Monte Carlo ceilings (wave 5): QuantLib keeps every sample, so an unbounded path count ends in std::bad_alloc after
+// seconds of simulating. Called after the memory-budget pre-check, whose message therefore still wins when it applies.
+void mc_paths(const Engine &e) {
+  QL_REQUIRE(e.paths >= 1 && e.paths <= mc_max_paths, "monte carlo: paths must be 1.." << mc_max_paths << ", got " << e.paths);
+}
+void mc_work(const Engine &e, int64_t per_path, const char *unit) {
+  mc_paths(e);
+  QL_REQUIRE(e.paths * per_path <= mc_max_paths, "monte carlo: paths times " << unit << " must be at most " << mc_max_paths << ", got "
+                                                     << e.paths << " x " << per_path << " = " << e.paths * per_path);
+}
 Real greek(const std::function<Real()> &f) {
   try { return f(); } catch (const Error &) { return NAN; }
 }
@@ -257,15 +271,36 @@ Result price_option(const Clock &c, const Option &o, const Model &m, const Engin
 
   if (o.exotic == Exotic::Barrier) {
     QL_REQUIRE(!m.heston && !o.american, "barrier options are priced by the Black-Scholes analytic engine (European only)");
-    QL_REQUIRE(e.kind == EngineKind::Analytic, "barrier options are priced with the analytic engine only");
+    const bool stepped = e.kind == EngineKind::MonteCarlo && e.stepped;
+    QL_REQUIRE(e.kind == EngineKind::Analytic || stepped, "barrier options are priced with the analytic engine only");
     Barrier::Type bt = o.barrier_type == "up-in" ? Barrier::UpIn : o.barrier_type == "up-out" ? Barrier::UpOut
                        : o.barrier_type == "down-in" ? Barrier::DownIn : Barrier::DownOut;
     BarrierOption opt(bt, o.barrier, o.rebate, payoff, ex);
-    opt.setPricingEngine(ext::make_shared<AnalyticBarrierEngine>(bs_process(c, m)));
     Result r;
+    if (stepped) {
+      // Discrete monitoring on `steps` equal time steps: QuantLib's biased path pricer, which looks at the simulated
+      // points only (no Brownian-bridge correction for a crossing between two points), plain pseudo-random paths.
+      const bool up = bt == Barrier::UpIn || bt == Barrier::UpOut;
+      QL_REQUIRE(up ? m.spot < o.barrier : m.spot > o.barrier,
+                 "barrier touched: the spot " << m.spot << " is already at or beyond the " << o.barrier_type << " barrier " << o.barrier);
+      membudget::require(static_cast<std::size_t>(e.paths) / 2 * 3 * sizeof(std::pair<Real, Real>));
+      mc_work(e, e.steps, "steps");
+      QL_REQUIRE(e.paths >= 2, "monte carlo: the standard error needs at least 2 paths, got " << e.paths);
+      opt.setPricingEngine(MakeMCBarrierEngine<PseudoRandom>(bs_process(c, m))
+                               .withSteps(static_cast<Size>(e.steps))
+                               .withSamples(static_cast<Size>(e.paths))
+                               .withSeed(static_cast<BigNatural>(e.seed))
+                               .withBias());
+      r.price = opt.NPV();
+      r.stderr_ = opt.errorEstimate();
+      return r;
+    }
+    opt.setPricingEngine(ext::make_shared<AnalyticBarrierEngine>(bs_process(c, m)));
     r.price = opt.NPV();
     return r;
   }
+  QL_REQUIRE(!(e.kind == EngineKind::MonteCarlo && e.stepped),
+             "pricing.monte_carlo_steps prices barrier options; use pricing.monte_carlo or pricing.monte_carlo_plain for this option");
   if (o.exotic == Exotic::Asian) {
     QL_REQUIRE(!m.heston && !o.american, "Asian options are priced on a Black-Scholes model (European exercise)");
     std::vector<Date> fixings;
@@ -283,11 +318,19 @@ Result price_option(const Clock &c, const Option &o, const Model &m, const Engin
     } else {
       QL_REQUIRE(e.kind == EngineKind::MonteCarlo, "arithmetic Asian options are priced with the monte_carlo engine (geometric control variate)");
       membudget::require(static_cast<std::size_t>(e.paths) / 2 * 3 * sizeof(std::pair<Real, Real>));
-      opt.setPricingEngine(MakeMCDiscreteArithmeticAPEngine<PseudoRandom>(p)
-                               .withSamples(static_cast<Size>(e.paths))
-                               .withSeed(static_cast<BigNatural>(e.seed))
-                               .withAntitheticVariate()
-                               .withControlVariate());
+      mc_work(e, o.fixings, "fixings");
+      if (e.plain) {
+        QL_REQUIRE(e.paths >= 2, "monte carlo: the standard error needs at least 2 paths, got " << e.paths);
+        opt.setPricingEngine(MakeMCDiscreteArithmeticAPEngine<PseudoRandom>(p)
+                                 .withSamples(static_cast<Size>(e.paths))
+                                 .withSeed(static_cast<BigNatural>(e.seed)));
+      } else {
+        opt.setPricingEngine(MakeMCDiscreteArithmeticAPEngine<PseudoRandom>(p)
+                                 .withSamples(static_cast<Size>(e.paths))
+                                 .withSeed(static_cast<BigNatural>(e.seed))
+                                 .withAntitheticVariate()
+                                 .withControlVariate());
+      }
       r.price = opt.NPV();
       r.stderr_ = opt.errorEstimate();
     }
@@ -325,11 +368,13 @@ Result price_option(const Clock &c, const Option &o, const Model &m, const Engin
         // QuantLib's MC statistics keep every sample (a (value, weight) pair). Fail before simulating when
         // the vector cannot fit: at the end it holds >= paths pairs, and growing it copied >= paths/2.
         membudget::require(static_cast<std::size_t>(e.paths) / 2 * 3 * sizeof(std::pair<Real, Real>));
+        mc_paths(e);
+        if (e.plain) QL_REQUIRE(e.paths >= 2, "monte carlo: the standard error needs at least 2 paths, got " << e.paths);
         opt.setPricingEngine(MakeMCEuropeanEngine<PseudoRandom>(p)
                                  .withSteps(1)
                                  .withSamples(static_cast<Size>(e.paths))
                                  .withSeed(static_cast<BigNatural>(e.seed))
-                                 .withAntitheticVariate());
+                                 .withAntitheticVariate(!e.plain));
         mc = true;
         break;
       case EngineKind::BaroneAdesiWhaley:
@@ -424,6 +469,14 @@ ext::shared_ptr<QuantLib::Bond> make_bond(const Clock &c, const lmfinance::Bond 
   return ext::make_shared<FixedRateBond>(0, b.face, sch, std::vector<Rate>{b.coupon}, bond_dc(), Unadjusted, 100.0, c.today);
 }
 Frequency yield_freq(const lmfinance::Bond &b) { return b.zero ? Annual : frequency(b.freq); }
+// A compounded yield y with m periods a year discounts by (1 + y/m)^-n: at or below -100% per period that is a division
+// by zero or a negative base, and QuantLib returns a number with no meaning. m = 1 for a zero bond.
+// Called after make_bond, so an invalid bond keeps its own message.
+void check_yield(const lmfinance::Bond &b, double y, const char *who) {
+  const int m = b.zero ? 1 : b.freq;
+  QL_REQUIRE(y > -static_cast<double>(m), who << ": yield must be above -100% per coupon period (above " << -100 * m
+                                              << "% a year for " << m << " period" << (m == 1 ? "" : "s") << " a year), got " << y);
+}
 }  // namespace
 
 double bond_clean_price(const Clock &c, const lmfinance::Bond &b, const Curve &cv) {
@@ -441,7 +494,9 @@ double bond_npv(const Clock &c, const lmfinance::Bond &b, const Curve &cv) {
 double bond_accrued(const Clock &c, const lmfinance::Bond &b) { activate(c); return make_bond(c, b)->accruedAmount(); }
 double bond_clean_from_yield(const Clock &c, const lmfinance::Bond &b, double y) {
   activate(c);
-  return make_bond(c, b)->cleanPrice(y, bond_dc(), Compounded, yield_freq(b));
+  auto q = make_bond(c, b);
+  check_yield(b, y, "pricing.bond_price_from_yield");
+  return q->cleanPrice(y, bond_dc(), Compounded, yield_freq(b));
 }
 double bond_yield(const Clock &c, const lmfinance::Bond &b, double clean) {
   activate(c);
@@ -449,12 +504,16 @@ double bond_yield(const Clock &c, const lmfinance::Bond &b, double clean) {
 }
 double bond_duration(const Clock &c, const lmfinance::Bond &b, double y, bool macaulay) {
   activate(c);
-  return BondFunctions::duration(*make_bond(c, b), InterestRate(y, bond_dc(), Compounded, yield_freq(b)),
+  auto q = make_bond(c, b);
+  check_yield(b, y, macaulay ? "pricing.bond_macaulay_duration" : "pricing.bond_duration");
+  return BondFunctions::duration(*q, InterestRate(y, bond_dc(), Compounded, yield_freq(b)),
                                  macaulay ? Duration::Macaulay : Duration::Modified);
 }
 double bond_convexity(const Clock &c, const lmfinance::Bond &b, double y) {
   activate(c);
-  return BondFunctions::convexity(*make_bond(c, b), InterestRate(y, bond_dc(), Compounded, yield_freq(b)));
+  auto q = make_bond(c, b);
+  check_yield(b, y, "pricing.bond_convexity");
+  return BondFunctions::convexity(*q, InterestRate(y, bond_dc(), Compounded, yield_freq(b)));
 }
 
 // ---------------------------------------------------------------- swaps
@@ -720,8 +779,13 @@ void heston_fit(const Clock &c, HestonFit &h) {
   h.sigma = model->sigma();
   h.rho = model->rho();
   double sse = 0;
-  for (const auto &x : helpers) { double e = x->calibrationError(); sse += e * e; }
+  h.errors.clear();
+  for (const auto &x : helpers) { double e = x->calibrationError(); sse += e * e; h.errors.push_back(e); }
   h.error = std::sqrt(sse / helpers.size());
+  h.evaluations = static_cast<int>(model->functionEvaluation());
+  std::ostringstream reason;
+  reason << why;
+  h.reason = reason.str();
 }
 
 double normal_quantile(double p) {
@@ -1209,6 +1273,234 @@ double par_yield(const Curve &cv, double years, int freq) {
   double sum = 0;
   for (int k = 1; k <= p; k++) sum += curve_discount(cv, static_cast<double>(k) / freq);
   return freq * (1.0 - curve_discount(cv, static_cast<double>(p) / freq)) / sum;
+}
+
+// ================================================================ wave 5 additions
+// (durable-memory/13-finance-wave5-additions.md)
+
+// 1. Standard normal distribution: QuantLib's CumulativeNormalDistribution (error function), NormalDistribution and
+// InverseCumulativeNormal (Acklam's rational approximation; its last digits differ between C libraries).
+double norm_cdf(double x) { return CumulativeNormalDistribution()(x); }
+double norm_pdf(double x) { return NormalDistribution()(x); }
+double norm_inv(double p) {
+  QL_REQUIRE(p > 0 && p < 1, "lmf.norm_inv: probability must be inside (0, 1), got " << p);
+  return InverseCumulativeNormal()(p);
+}
+
+// 2. d1 and d2 exactly as AnalyticEuropeanEngine forms them: the expiry is a date (round(365 years) days ahead), the time
+// is days / 365, forward = S * D_q / D_r and stdDev = sqrt(vol^2 t). N(d1) * D_q is the engine's call delta.
+namespace {
+struct D12 { double d1, d2; };
+D12 bs_d12(const Clock &c, const Option &o, const Model &m, const char *who) {
+  activate(c);
+  QL_REQUIRE(!m.heston, who << ": needs a Black-Scholes model, not a Heston model");
+  QL_REQUIRE(o.exotic == Exotic::None && !o.american,
+             who << ": needs a plain European option (" << (o.american ? "this one is American" : o.exotic == Exotic::Barrier ? "this one is a barrier option"
+                 : o.exotic == Exotic::Asian ? "this one is an Asian option" : "this one is a forward") << ")");
+  check_model(m);
+  QL_REQUIRE(o.strike > 0, "strike must be positive");
+  const Date expiry = years_ahead(c, o.years);
+  auto p = bs_process(c, m);
+  const Real variance = p->blackVolatility()->blackVariance(expiry, o.strike);
+  const Real forward = m.spot * p->dividendYield()->discount(expiry) / p->riskFreeRate()->discount(expiry);
+  const Real sd = std::sqrt(variance);
+  const Real d1 = std::log(forward / o.strike) / sd + 0.5 * sd;
+  return {d1, d1 - sd};
+}
+// The time every option-related function uses for `years`: whole days on a 365-day year.
+double day_grid_time(double years, const char *who) {
+  QL_REQUIRE(years > 0 && years <= 100, who << ": years must be above 0 and at most 100, got " << years);
+  const auto days = std::llround(years * 365.0);
+  QL_REQUIRE(days >= 1, who << ": " << years << " years is shorter than one day (1/365 year)");
+  return static_cast<double>(days) / 365.0;
+}
+void need_seed(int64_t seed, const char *who) {
+  QL_REQUIRE(seed >= 1 && seed <= 2147483647LL, who << ": seed must be 1..2147483647 (0 would mean a clock-based seed), got " << seed);
+}
+}  // namespace
+double bs_d1(const Clock &c, const Option &o, const Model &m) { return bs_d12(c, o, m, "pricing.bs_d1").d1; }
+double bs_d2(const Clock &c, const Option &o, const Model &m) { return bs_d12(c, o, m, "pricing.bs_d2").d2; }
+
+// 4. Risk-neutral Black-Scholes samples, own code: S_T = S exp((r - q - vol^2/2) T + vol sqrt(T) z), z the inverse normal
+// of one Mersenne Twister uniform per draw (QuantLib's MersenneTwisterUniformRng and InverseCumulativeNormal; no std::
+// distribution, whose output differs between standard libraries). T is on the day grid like an option's maturity.
+std::vector<double> terminal_samples(const Model &m, double years, int64_t n, int64_t seed) {
+  const char *who = "model.terminal_samples";
+  QL_REQUIRE(!m.heston, who << ": needs a Black-Scholes model, not a Heston model");
+  check_model(m);
+  QL_REQUIRE(n >= 1 && n <= 10000, who << ": n must be 1..10000, got " << n);
+  need_seed(seed, who);
+  const double t = day_grid_time(years, who);
+  const double drift = (m.r - m.q - 0.5 * m.vol * m.vol) * t, sd = m.vol * std::sqrt(t);
+  MersenneTwisterUniformRng rng(static_cast<unsigned long>(seed));
+  InverseCumulativeNormal inv;
+  std::vector<double> out;
+  out.reserve(static_cast<std::size_t>(n));
+  for (int64_t i = 0; i < n; i++) out.push_back(m.spot * std::exp(drift + sd * inv(rng.nextReal())));
+  return out;
+}
+// One path on `steps` equal steps: steps + 1 prices, the first is the spot. The log-price is summed and exponentiated
+// once per point, so point k is S exp(x_k) (no product of rounded factors).
+std::vector<double> sample_path(const Model &m, double years, int64_t steps, int64_t seed) {
+  const char *who = "model.sample_path";
+  QL_REQUIRE(!m.heston, who << ": needs a Black-Scholes model, not a Heston model");
+  check_model(m);
+  QL_REQUIRE(steps >= 1 && steps <= 1000, who << ": steps must be 1..1000, got " << steps);
+  need_seed(seed, who);
+  const double dt = day_grid_time(years, who) / static_cast<double>(steps);
+  const double drift = (m.r - m.q - 0.5 * m.vol * m.vol) * dt, sd = m.vol * std::sqrt(dt);
+  MersenneTwisterUniformRng rng(static_cast<unsigned long>(seed));
+  InverseCumulativeNormal inv;
+  std::vector<double> out{m.spot};
+  double x = 0;
+  for (int64_t k = 0; k < steps; k++) {
+    x += drift + sd * inv(rng.nextReal());
+    out.push_back(m.spot * std::exp(x));
+  }
+  return out;
+}
+
+// 5. Payoff (not discounted) of an option on a given path of prices; the first point is the price today.
+// Plain European option and forward: the last point. Barrier: touched when any point, the first included, is at or
+// beyond the barrier (up: >=, down: <=); knocked out pays the rebate 0, knocked in pays the plain payoff of the last
+// point. Asian: the arithmetic or geometric mean of the points after the first.
+double path_payoff(const Option &o, const std::vector<double> &path) {
+  const char *who = "Option.path_payoff";
+  QL_REQUIRE(!path.empty(), who << ": the path is empty");
+  QL_REQUIRE(path.size() <= 100000, who << ": the path has " << path.size() << " points, at most 100000");
+  for (std::size_t i = 0; i < path.size(); i++)
+    QL_REQUIRE(std::isfinite(path[i]) && path[i] > 0, who << ": prices must be positive, got " << path[i] << " at index " << i);
+  QL_REQUIRE(!o.american, who << ": an American option's payoff depends on when it is exercised; use Option.payoff(spot) at the exercise point");
+  const double last = path.back();
+  const auto plain = [&o](double s) { return o.call ? std::max(s - o.strike, 0.0) : std::max(o.strike - s, 0.0); };
+  switch (o.exotic) {
+    case Exotic::None: return plain(last);
+    case Exotic::Forward: return last - o.strike;
+    case Exotic::Barrier: {
+      const bool up = o.barrier_type == "up-in" || o.barrier_type == "up-out";
+      const bool in = o.barrier_type == "up-in" || o.barrier_type == "down-in";
+      bool touched = false;
+      for (double s : path) if (up ? s >= o.barrier : s <= o.barrier) touched = true;
+      return touched == in ? plain(last) : o.rebate;
+    }
+    case Exotic::Asian: {
+      QL_REQUIRE(path.size() >= 2, who << ": an Asian payoff needs the price today and at least one fixing, got " << path.size() << " point");
+      double sum = 0;
+      const bool geo = o.averaging == "geometric";
+      for (std::size_t i = 1; i < path.size(); i++) sum += geo ? std::log(path[i]) : path[i];
+      const double mean = sum / static_cast<double>(path.size() - 1);
+      return plain(geo ? std::exp(mean) : mean);
+    }
+  }
+  QL_FAIL(who << ": unsupported option kind");
+}
+
+// 7. Black (1976) and Bachelier (normal) prices of a call or put on a forward: QuantLib's blackFormula and
+// bachelierBlackFormula with stdDev = vol sqrt(expiry), times the discount factor. Time is exact (no day grid).
+namespace {
+QuantLib::Option::Type call_put(const std::string &kind, const char *who) {
+  if (kind == "call") return QuantLib::Option::Call;
+  if (kind == "put") return QuantLib::Option::Put;
+  QL_FAIL(who << ": kind must be call or put, got '" << kind << "'");
+}
+}  // namespace
+double black76(const std::string &kind, double forward, double strike, double vol, double expiry, double discount) {
+  const char *who = "pricing.black76";
+  const auto type = call_put(kind, who);
+  QL_REQUIRE(forward > 0, who << ": forward must be positive, got " << forward << " (use pricing.bachelier for a negative forward)");
+  QL_REQUIRE(strike > 0, who << ": strike must be positive, got " << strike);
+  QL_REQUIRE(vol > 0, who << ": vol must be positive, got " << vol);
+  QL_REQUIRE(expiry > 0, who << ": expiry must be positive, got " << expiry);
+  QL_REQUIRE(discount > 0, who << ": discount must be positive, got " << discount);
+  return blackFormula(type, strike, forward, vol * std::sqrt(expiry), discount);
+}
+double bachelier(const std::string &kind, double forward, double strike, double vol, double expiry, double discount) {
+  const char *who = "pricing.bachelier";
+  const auto type = call_put(kind, who);
+  QL_REQUIRE(vol > 0, who << ": vol must be positive, got " << vol);
+  QL_REQUIRE(expiry > 0, who << ": expiry must be positive, got " << expiry);
+  QL_REQUIRE(discount > 0, who << ": discount must be positive, got " << discount);
+  return bachelierBlackFormula(type, strike, forward, vol * std::sqrt(expiry), discount);
+}
+
+// 8. The pieces of a cap or floor. Prices and forwards are the Black engine's own per-period results; the swap is the
+// cap's leg valued as "receive the floating rate, pay the strike" with the engine's forwards, accruals and discount
+// factors, so cap - floor equals it term by term.
+std::vector<double> capfloor_caplets(const Clock &c, const lmfinance::CapFloor &cf, const Curve &cv, double vol) {
+  activate(c);
+  QL_REQUIRE(vol > 0, "cap/floor volatility must be positive");
+  auto q = make_capfloor(c, cf, cv);
+  q->setPricingEngine(ext::make_shared<BlackCapFloorEngine>(Handle<YieldTermStructure>(cv.ts), vol));
+  q->NPV();
+  return q->result<std::vector<Real>>("optionletsPrice");
+}
+std::vector<double> capfloor_forwards(const Clock &c, const lmfinance::CapFloor &cf, const Curve &cv) {
+  activate(c);
+  auto q = make_capfloor(c, cf, cv);
+  std::vector<double> out;
+  for (const auto &flow : q->floatingLeg()) {
+    auto cp = ext::dynamic_pointer_cast<FloatingRateCoupon>(flow);
+    QL_REQUIRE(cp, "pricing.capfloor_forwards: the leg holds a flow that is not a floating coupon");
+    out.push_back(cp->adjustedFixing());
+  }
+  return out;
+}
+double capfloor_swap_npv(const Clock &c, const lmfinance::CapFloor &cf, const Curve &cv) {
+  activate(c);
+  auto q = make_capfloor(c, cf, cv);
+  double v = 0;
+  for (const auto &flow : q->floatingLeg()) {
+    auto cp = ext::dynamic_pointer_cast<FloatingRateCoupon>(flow);
+    QL_REQUIRE(cp, "pricing.capfloor_swap_npv: the leg holds a flow that is not a floating coupon");
+    v += cv.ts->discount(cp->date()) * cp->nominal() * cp->accrualPeriod() * (cp->adjustedFixing() - cf.strike);
+  }
+  return v;
+}
+// The annuity of the Black swaption formula: |fixed-leg BPS| / 1 bp of the forward-starting underlying swap (notional
+// included, discounted to the evaluation date). price = annuity * Black76(forward swap rate, strike, vol sqrt(T)).
+double swaption_annuity(const Clock &c, const lmfinance::Swaption &sw, const Curve &cv) {
+  activate(c);
+  auto q = make_swaption(c, sw, cv);
+  q->setPricingEngine(ext::make_shared<BlackSwaptionEngine>(Handle<YieldTermStructure>(cv.ts), 0.2));
+  q->NPV();
+  return q->result<Real>("annuity");
+}
+
+// 9. Smile: the Black-Scholes implied volatility of the model's European call price at each strike (analytic engine,
+// Brent from 20% as calibration.implied_vol does). A Black-Scholes model returns its own volatility, exactly.
+std::vector<double> smile(const Clock &c, const Model &m, const std::vector<double> &strikes, double years) {
+  const char *who = "calibration.smile";
+  check_model(m);
+  QL_REQUIRE(!strikes.empty() && strikes.size() <= 1000, who << ": needs 1..1000 strikes, got " << strikes.size());
+  day_grid_time(years, who);
+  Engine analytic;
+  Model bs;
+  bs.spot = m.spot; bs.r = m.r; bs.q = m.q; bs.vol = 0.2;
+  std::vector<double> out;
+  for (std::size_t i = 0; i < strikes.size(); i++) {
+    QL_REQUIRE(std::isfinite(strikes[i]) && strikes[i] > 0, who << ": strikes must be positive, got " << strikes[i] << " at index " << i);
+    if (!m.heston) { out.push_back(m.vol); continue; }
+    Option o;
+    o.strike = strikes[i]; o.years = years;
+    const double price = price_option(c, o, m, analytic).price;
+    try {
+      out.push_back(implied_vol(c, o, bs, analytic, price));
+    } catch (const Error &e) {
+      QL_FAIL(who << ": no implied volatility at strike " << strikes[i] << " (" << e.what() << ")");
+    }
+  }
+  return out;
+}
+
+// 10. Textbook DV01 on the bond's own yield (compounded at its coupon frequency): modified duration * dirty value * 1 bp,
+// in currency for the bond's face. Positive: the gain for a fall of one basis point (to first order).
+double bond_dv01_yield(const Clock &c, const lmfinance::Bond &b, double y) {
+  activate(c);
+  auto q = make_bond(c, b);
+  check_yield(b, y, "risk.bond_dv01_yield");
+  const InterestRate rate(y, bond_dc(), Compounded, yield_freq(b));
+  const double dirty = (q->cleanPrice(y, bond_dc(), Compounded, yield_freq(b)) + q->accruedAmount()) * b.face / 100.0;
+  return BondFunctions::duration(*q, rate, Duration::Modified) * dirty * 1e-4;
 }
 
 }  // namespace lmfinance

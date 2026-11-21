@@ -43,7 +43,11 @@ struct Model {
   double v0 = 0, kappa = 0, theta = 0, sigma = 0, rho = 0;          // Heston
 };
 enum class EngineKind { Analytic, Binomial, FiniteDifference, MonteCarlo, BaroneAdesiWhaley };
-struct Engine { EngineKind kind = EngineKind::Analytic; int steps = 0, grid = 0; int64_t paths = 0, seed = 0; std::string tree = "crr"; };
+struct Engine {
+  EngineKind kind = EngineKind::Analytic; int steps = 0, grid = 0; int64_t paths = 0, seed = 0; std::string tree = "crr";
+  bool plain = false;                                               // Monte Carlo without antithetic and control variates
+  bool stepped = false;                                             // Monte Carlo on `steps` time steps (barrier options)
+};
 struct Result {
   double price = 0, stderr_ = NAN, delta = NAN, gamma = NAN, vega = NAN, theta = NAN, rho = NAN;
 };
@@ -59,6 +63,9 @@ struct HestonFit {
   double spot = 0, r = 0, q = 0, v0 = 0.04, kappa = 1.5, theta = 0.04, sigma = 0.5, rho = -0.5, error = NAN;
   struct Quote { double strike, years, vol; };
   std::vector<Quote> quotes;
+  std::vector<double> errors;                                       // after fit(): model implied vol - quoted vol, in quote order
+  int evaluations = -1;                                             // after fit(): cost-function evaluations
+  std::string reason;                                               // after fit(): the end criterion, as text
 };
 
 QuantLib::Date parse_date(const std::string &iso);
@@ -174,5 +181,31 @@ double implied_vol(const Clock &, const Option &, const Model &, const Engine &,
 void heston_fit(const Clock &, HestonFit &);
 double normal_quantile(double p);
 double normal_density(double x);
+
+// ---- wave 5 additions (docs: durable-memory/13-finance-wave5-additions.md) ----
+inline constexpr int64_t mc_max_paths = 4000000;                    // ceiling on paths, paths x fixings, paths x steps
+// 1. standard normal distribution
+double norm_cdf(double x);
+double norm_pdf(double x);
+double norm_inv(double p);
+// 2. the d1 and d2 of the analytic European engine (same day-count time, same forward)
+double bs_d1(const Clock &, const Option &, const Model &);
+double bs_d2(const Clock &, const Option &, const Model &);
+// 4. risk-neutral Black-Scholes samples; 5. payoff of an option on a given path
+std::vector<double> terminal_samples(const Model &, double years, int64_t n, int64_t seed);
+std::vector<double> sample_path(const Model &, double years, int64_t steps, int64_t seed);
+double path_payoff(const Option &, const std::vector<double> &path);
+// 7. Black (1976) and Bachelier formulas on a forward
+double black76(const std::string &kind, double forward, double strike, double vol, double expiry, double discount);
+double bachelier(const std::string &kind, double forward, double strike, double normal_vol, double expiry, double discount);
+// 8. the pieces of a cap/floor and of a swaption
+std::vector<double> capfloor_caplets(const Clock &, const CapFloor &, const Curve &, double vol);
+std::vector<double> capfloor_forwards(const Clock &, const CapFloor &, const Curve &);
+double capfloor_swap_npv(const Clock &, const CapFloor &, const Curve &);
+double swaption_annuity(const Clock &, const Swaption &, const Curve &);
+// 9. implied-volatility smile of a model
+std::vector<double> smile(const Clock &, const Model &, const std::vector<double> &strikes, double years);
+// 10. textbook yield DV01 (currency, for the bond's face)
+double bond_dv01_yield(const Clock &, const Bond &, double y);
 
 }  // namespace lmfinance

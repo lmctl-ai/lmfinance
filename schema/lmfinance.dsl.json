@@ -444,6 +444,14 @@
             "returns": "float"
           }
         ],
+        "path_payoff": [
+          {
+            "params": [
+              "FloatList"
+            ],
+            "returns": "float"
+          }
+        ],
         "strike": [
           {
             "params": [],
@@ -518,6 +526,28 @@
               "float"
             ],
             "returns": "Model"
+          }
+        ],
+        "terminal_samples": [
+          {
+            "params": [
+              "Model",
+              "float",
+              "int",
+              "int"
+            ],
+            "returns": "FloatList"
+          }
+        ],
+        "sample_path": [
+          {
+            "params": [
+              "Model",
+              "float",
+              "int",
+              "int"
+            ],
+            "returns": "FloatList"
           }
         ],
         "binomial_tree": [
@@ -645,6 +675,106 @@
               "int"
             ],
             "returns": "Engine"
+          }
+        ],
+        "monte_carlo_plain": [
+          {
+            "params": [
+              "int",
+              "int"
+            ],
+            "returns": "Engine"
+          }
+        ],
+        "monte_carlo_steps": [
+          {
+            "params": [
+              "int",
+              "int",
+              "int"
+            ],
+            "returns": "Engine"
+          }
+        ],
+        "bs_d1": [
+          {
+            "params": [
+              "Option",
+              "Model"
+            ],
+            "returns": "float"
+          }
+        ],
+        "bs_d2": [
+          {
+            "params": [
+              "Option",
+              "Model"
+            ],
+            "returns": "float"
+          }
+        ],
+        "black76": [
+          {
+            "params": [
+              "string",
+              "float",
+              "float",
+              "float",
+              "float",
+              "float"
+            ],
+            "returns": "float"
+          }
+        ],
+        "bachelier": [
+          {
+            "params": [
+              "string",
+              "float",
+              "float",
+              "float",
+              "float",
+              "float"
+            ],
+            "returns": "float"
+          }
+        ],
+        "capfloor_caplets": [
+          {
+            "params": [
+              "CapFloor",
+              "Curve",
+              "float"
+            ],
+            "returns": "FloatList"
+          }
+        ],
+        "capfloor_forwards": [
+          {
+            "params": [
+              "CapFloor",
+              "Curve"
+            ],
+            "returns": "FloatList"
+          }
+        ],
+        "capfloor_swap_npv": [
+          {
+            "params": [
+              "CapFloor",
+              "Curve"
+            ],
+            "returns": "float"
+          }
+        ],
+        "swaption_annuity": [
+          {
+            "params": [
+              "Swaption",
+              "Curve"
+            ],
+            "returns": "float"
           }
         ],
         "price": [
@@ -1208,6 +1338,15 @@
             "returns": "float"
           }
         ],
+        "bond_dv01_yield": [
+          {
+            "params": [
+              "Bond",
+              "float"
+            ],
+            "returns": "float"
+          }
+        ],
         "swap_dv01": [
           {
             "params": [
@@ -1438,6 +1577,16 @@
             ],
             "returns": "HestonFit"
           }
+        ],
+        "smile": [
+          {
+            "params": [
+              "Model",
+              "FloatList",
+              "float"
+            ],
+            "returns": "FloatList"
+          }
         ]
       }
     },
@@ -1475,6 +1624,24 @@
           {
             "params": [],
             "returns": "float"
+          }
+        ],
+        "errors": [
+          {
+            "params": [],
+            "returns": "FloatList"
+          }
+        ],
+        "evaluations": [
+          {
+            "params": [],
+            "returns": "int"
+          }
+        ],
+        "reason": [
+          {
+            "params": [],
+            "returns": "string"
           }
         ]
       }
@@ -1544,6 +1711,30 @@
           }
         ],
         "log": [
+          {
+            "params": [
+              "float"
+            ],
+            "returns": "float"
+          }
+        ],
+        "norm_cdf": [
+          {
+            "params": [
+              "float"
+            ],
+            "returns": "float"
+          }
+        ],
+        "norm_pdf": [
+          {
+            "params": [
+              "float"
+            ],
+            "returns": "float"
+          }
+        ],
+        "norm_inv": [
           {
             "params": [
               "float"
