@@ -121,7 +121,7 @@ with `market.set_date`.
 
 Conventions and details: [durable-memory/03-schema-v0.md](durable-memory/03-schema-v0.md); the textbook-course additions are in
 [12-finance-track-additions.md](durable-memory/12-finance-track-additions.md) and [13-finance-wave5-additions.md](durable-memory/13-finance-wave5-additions.md).
-A Monte Carlo run takes at most 4,000,000 paths (and 4,000,000 paths times fixings or steps).
+`monte_carlo_plain` and `monte_carlo_steps` take at most 4,000,000 paths (and 4,000,000 paths times fixings or steps); in the WebAssembly build the same ceiling applies to `monte_carlo`.
 
 Combine it with other hosts in one script: [examples/gallery/](examples/gallery) bootstraps curves, prices and profiles options with lmfinance and draws them with [lmplot](https://github.com/lmctl-ai/lmplot)
 (two `_lmcode_ blocks, two hosts).

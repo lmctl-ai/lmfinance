@@ -133,11 +133,16 @@ template <class Tree> ext::shared_ptr<PricingEngine> tree_engine(const ext::shar
 
 // Monte Carlo ceilings (wave 5): QuantLib keeps every sample, so an unbounded path count ends in std::bad_alloc after
 // seconds of simulating. Called after the memory-budget pre-check, whose message therefore still wins when it applies.
+// The ceilings bind the wave 5 engines everywhere. The older pricing.monte_carlo keeps its native range (the gallery
+// runs it with up to 16,384,000 paths) and gets the ceiling only where memory is 32-bit (the WebAssembly build).
+static bool mc_capped(const Engine &e) { return e.plain || sizeof(void *) == 4; }
 void mc_paths(const Engine &e) {
+  if (!mc_capped(e)) return;
   QL_REQUIRE(e.paths >= 1 && e.paths <= mc_max_paths, "monte carlo: paths must be 1.." << mc_max_paths << ", got " << e.paths);
 }
 void mc_work(const Engine &e, int64_t per_path, const char *unit) {
   mc_paths(e);
+  if (!mc_capped(e)) return;
   QL_REQUIRE(e.paths * per_path <= mc_max_paths, "monte carlo: paths times " << unit << " must be at most " << mc_max_paths << ", got "
                                                      << e.paths << " x " << per_path << " = " << e.paths * per_path);
 }

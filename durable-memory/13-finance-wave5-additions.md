@@ -136,3 +136,11 @@ lmf.print(lmf.money(risk.bond_dv01_yield(instrument.bond(1000.0, 0.05, 10.0, 1),
 ```
 
 The pinned values are in `tests/finance_wave5.lms`; `test.sh` runs it with the other programs.
+
+## Ceiling scope (lead's decision, 2026-11-21)
+
+The 4,000,000 ceilings bind `pricing.monte_carlo_plain` and `pricing.monte_carlo_steps` on every platform. The older
+`pricing.monte_carlo` is unchanged natively (the gallery examples run it with up to 16,384,000 paths; they are not
+shortened) and gets the same ceilings only in a 32-bit build (WebAssembly), where an unbounded run ended in
+`std::bad_alloc`. Statements above that say `pricing.monte_carlo` stops above 4,000,000 paths hold for the
+WebAssembly build only; the two native tests for them were removed from `test.sh`.
