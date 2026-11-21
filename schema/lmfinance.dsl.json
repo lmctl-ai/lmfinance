@@ -26,6 +26,31 @@
             "returns": "Curve"
           }
         ],
+        "flat_curve_compounded": [
+          {
+            "params": [
+              "float",
+              "string"
+            ],
+            "returns": "Curve"
+          }
+        ],
+        "equivalent_rate": [
+          {
+            "params": [
+              "float",
+              "string",
+              "string"
+            ],
+            "returns": "float"
+          }
+        ],
+        "discount_curve": [
+          {
+            "params": [],
+            "returns": "CurveBuilder"
+          }
+        ],
         "zero_curve": [
           {
             "params": [],
@@ -45,6 +70,25 @@
         "zero": [
           {
             "params": [
+              "float",
+              "float"
+            ],
+            "returns": "CurveBuilder"
+          }
+        ],
+        "discount": [
+          {
+            "params": [
+              "float",
+              "float"
+            ],
+            "returns": "CurveBuilder"
+          }
+        ],
+        "bond": [
+          {
+            "params": [
+              "float",
               "float",
               "float"
             ],
@@ -100,6 +144,25 @@
             "params": [
               "float",
               "float"
+            ],
+            "returns": "float"
+          }
+        ],
+        "zero_rate": [
+          {
+            "params": [
+              "float",
+              "string"
+            ],
+            "returns": "float"
+          }
+        ],
+        "forward_rate": [
+          {
+            "params": [
+              "float",
+              "float",
+              "string"
             ],
             "returns": "float"
           }
@@ -264,6 +327,44 @@
             ],
             "returns": "Swap"
           }
+        ],
+        "forward": [
+          {
+            "params": [
+              "float",
+              "float"
+            ],
+            "returns": "Option"
+          }
+        ],
+        "strategy": [
+          {
+            "params": [],
+            "returns": "Strategy"
+          }
+        ],
+        "swap_simple": [
+          {
+            "params": [
+              "float",
+              "float",
+              "float",
+              "int"
+            ],
+            "returns": "Swap"
+          }
+        ],
+        "bond_dated": [
+          {
+            "params": [
+              "float",
+              "float",
+              "string",
+              "string",
+              "int"
+            ],
+            "returns": "Bond"
+          }
         ]
       }
     },
@@ -293,8 +394,56 @@
         ]
       }
     },
+    "Strategy": {
+      "methods": {
+        "add": [
+          {
+            "params": [
+              "Option",
+              "float"
+            ],
+            "returns": "Strategy"
+          }
+        ],
+        "payoff": [
+          {
+            "params": [
+              "float"
+            ],
+            "returns": "float"
+          }
+        ],
+        "profit": [
+          {
+            "params": [
+              "float",
+              "float"
+            ],
+            "returns": "float"
+          }
+        ],
+        "payoffs": [
+          {
+            "params": [
+              "float",
+              "float",
+              "int"
+            ],
+            "returns": "FloatList"
+          }
+        ]
+      }
+    },
     "Option": {
       "methods": {
+        "payoff": [
+          {
+            "params": [
+              "float"
+            ],
+            "returns": "float"
+          }
+        ],
         "strike": [
           {
             "params": [],
@@ -370,53 +519,87 @@
             ],
             "returns": "Model"
           }
+        ],
+        "binomial_tree": [
+          {
+            "params": [
+              "float",
+              "float",
+              "float",
+              "float",
+              "int"
+            ],
+            "returns": "Tree"
+          }
         ]
       }
     },
-    "Model": {
+    "Tree": {
       "methods": {
-        "spot": [
+        "q": [
           {
             "params": [],
             "returns": "float"
           }
         ],
-        "param": [
+        "steps": [
+          {
+            "params": [],
+            "returns": "int"
+          }
+        ],
+        "discount": [
+          {
+            "params": [],
+            "returns": "float"
+          }
+        ],
+        "stock": [
           {
             "params": [
-              "string"
+              "int",
+              "int"
             ],
             "returns": "float"
           }
         ],
-        "with_spot": [
+        "prob": [
           {
             "params": [
-              "float"
+              "int",
+              "int"
             ],
-            "returns": "Model"
+            "returns": "float"
           }
         ],
-        "with_rate": [
+        "state_price": [
           {
             "params": [
-              "float"
+              "int",
+              "int"
             ],
-            "returns": "Model"
+            "returns": "float"
           }
         ],
-        "with_vol": [
+        "is_arbitrage_free": [
           {
-            "params": [
-              "float"
-            ],
-            "returns": "Model"
+            "params": [],
+            "returns": "bool"
           }
         ]
       }
     },
     "PricingApi": {
       "methods": {
+        "tree_price": [
+          {
+            "params": [
+              "Option",
+              "Tree"
+            ],
+            "returns": "TreeResult"
+          }
+        ],
         "analytic": [
           {
             "params": [],
@@ -572,6 +755,153 @@
             "returns": "float"
           }
         ],
+        "npv": [
+          {
+            "params": [
+              "Curve",
+              "FloatList",
+              "FloatList"
+            ],
+            "returns": "float"
+          }
+        ],
+        "pv_terms": [
+          {
+            "params": [
+              "Curve",
+              "FloatList",
+              "FloatList"
+            ],
+            "returns": "FloatList"
+          }
+        ],
+        "annuity_pv": [
+          {
+            "params": [
+              "float",
+              "float",
+              "int"
+            ],
+            "returns": "float"
+          }
+        ],
+        "annuity_fv": [
+          {
+            "params": [
+              "float",
+              "float",
+              "int"
+            ],
+            "returns": "float"
+          }
+        ],
+        "loan_payment": [
+          {
+            "params": [
+              "float",
+              "float",
+              "int"
+            ],
+            "returns": "float"
+          }
+        ],
+        "amortization": [
+          {
+            "params": [
+              "float",
+              "float",
+              "int",
+              "string"
+            ],
+            "returns": "FloatList"
+          }
+        ],
+        "perpetuity": [
+          {
+            "params": [
+              "float",
+              "float",
+              "float"
+            ],
+            "returns": "float"
+          }
+        ],
+        "dcf_two_stage": [
+          {
+            "params": [
+              "float",
+              "FloatList",
+              "float"
+            ],
+            "returns": "float"
+          }
+        ],
+        "forward_price": [
+          {
+            "params": [
+              "float",
+              "Curve",
+              "float",
+              "float",
+              "float"
+            ],
+            "returns": "float"
+          }
+        ],
+        "swap_fixed_leg_npv": [
+          {
+            "params": [
+              "Swap",
+              "Curve"
+            ],
+            "returns": "float"
+          }
+        ],
+        "swap_float_leg_npv": [
+          {
+            "params": [
+              "Swap",
+              "Curve"
+            ],
+            "returns": "float"
+          }
+        ],
+        "swap_flows": [
+          {
+            "params": [
+              "Swap",
+              "Curve",
+              "string"
+            ],
+            "returns": "FloatList"
+          }
+        ],
+        "bond_cashflow_times": [
+          {
+            "params": [
+              "Bond"
+            ],
+            "returns": "FloatList"
+          }
+        ],
+        "bond_cashflow_amounts": [
+          {
+            "params": [
+              "Bond"
+            ],
+            "returns": "FloatList"
+          }
+        ],
+        "par_yield": [
+          {
+            "params": [
+              "Curve",
+              "float",
+              "int"
+            ],
+            "returns": "float"
+          }
+        ],
         "capfloor_npv": [
           {
             "params": [
@@ -628,6 +958,121 @@
               "Curve"
             ],
             "returns": "float"
+          }
+        ]
+      }
+    },
+    "TreeResult": {
+      "methods": {
+        "price": [
+          {
+            "params": [],
+            "returns": "float"
+          }
+        ],
+        "value": [
+          {
+            "params": [
+              "int",
+              "int"
+            ],
+            "returns": "float"
+          }
+        ],
+        "intrinsic": [
+          {
+            "params": [
+              "int",
+              "int"
+            ],
+            "returns": "float"
+          }
+        ],
+        "continuation": [
+          {
+            "params": [
+              "int",
+              "int"
+            ],
+            "returns": "float"
+          }
+        ],
+        "exercised": [
+          {
+            "params": [
+              "int",
+              "int"
+            ],
+            "returns": "bool"
+          }
+        ],
+        "delta": [
+          {
+            "params": [
+              "int",
+              "int"
+            ],
+            "returns": "float"
+          }
+        ],
+        "gamma": [
+          {
+            "params": [
+              "int",
+              "int"
+            ],
+            "returns": "float"
+          }
+        ],
+        "bond": [
+          {
+            "params": [
+              "int",
+              "int"
+            ],
+            "returns": "float"
+          }
+        ]
+      }
+    },
+    "Model": {
+      "methods": {
+        "spot": [
+          {
+            "params": [],
+            "returns": "float"
+          }
+        ],
+        "param": [
+          {
+            "params": [
+              "string"
+            ],
+            "returns": "float"
+          }
+        ],
+        "with_spot": [
+          {
+            "params": [
+              "float"
+            ],
+            "returns": "Model"
+          }
+        ],
+        "with_rate": [
+          {
+            "params": [
+              "float"
+            ],
+            "returns": "Model"
+          }
+        ],
+        "with_vol": [
+          {
+            "params": [
+              "float"
+            ],
+            "returns": "Model"
           }
         ]
       }
@@ -794,12 +1239,113 @@
             "returns": "float"
           }
         ],
+        "mark_to_market": [
+          {
+            "params": [
+              "float",
+              "FloatList"
+            ],
+            "returns": "FloatList"
+          }
+        ],
+        "portfolio_return": [
+          {
+            "params": [
+              "FloatList",
+              "FloatList"
+            ],
+            "returns": "float"
+          }
+        ],
+        "portfolio_variance": [
+          {
+            "params": [
+              "FloatList",
+              "FloatList",
+              "FloatList"
+            ],
+            "returns": "float"
+          }
+        ],
+        "portfolio_vol": [
+          {
+            "params": [
+              "FloatList",
+              "FloatList",
+              "FloatList"
+            ],
+            "returns": "float"
+          }
+        ],
+        "min_variance_weights": [
+          {
+            "params": [
+              "FloatList",
+              "FloatList"
+            ],
+            "returns": "FloatList"
+          }
+        ],
+        "tangency_weights": [
+          {
+            "params": [
+              "FloatList",
+              "FloatList",
+              "FloatList",
+              "float"
+            ],
+            "returns": "FloatList"
+          }
+        ],
+        "loss_distribution": [
+          {
+            "params": [
+              "FloatList",
+              "FloatList"
+            ],
+            "returns": "LossDist"
+          }
+        ],
         "series": [
           {
             "params": [
               "string"
             ],
             "returns": "Series"
+          }
+        ]
+      }
+    },
+    "LossDist": {
+      "methods": {
+        "mean": [
+          {
+            "params": [],
+            "returns": "float"
+          }
+        ],
+        "cdf": [
+          {
+            "params": [
+              "float"
+            ],
+            "returns": "float"
+          }
+        ],
+        "var": [
+          {
+            "params": [
+              "float"
+            ],
+            "returns": "float"
+          }
+        ],
+        "es": [
+          {
+            "params": [
+              "float"
+            ],
+            "returns": "float"
           }
         ]
       }
@@ -961,6 +1507,48 @@
               "string"
             ],
             "returns": "void"
+          }
+        ],
+        "round": [
+          {
+            "params": [
+              "float",
+              "int"
+            ],
+            "returns": "float"
+          }
+        ],
+        "money": [
+          {
+            "params": [
+              "float"
+            ],
+            "returns": "string"
+          }
+        ],
+        "fraction": [
+          {
+            "params": [
+              "float",
+              "int"
+            ],
+            "returns": "string"
+          }
+        ],
+        "exp": [
+          {
+            "params": [
+              "float"
+            ],
+            "returns": "float"
+          }
+        ],
+        "log": [
+          {
+            "params": [
+              "float"
+            ],
+            "returns": "float"
           }
         ],
         "print": [
